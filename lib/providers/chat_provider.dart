@@ -1,10 +1,13 @@
+//lib/providers/chat_provider.dart
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
 import '../services/chat_service.dart';
 
 class ChatProvider with ChangeNotifier {
   final ChatService _chatService = ChatService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<ChatModel> _chats = [];
   final Map<String, List<MessageModel>> _messages = {};
   bool _isLoading = false;
@@ -47,10 +50,23 @@ class ChatProvider with ChangeNotifier {
   // Load messages for a chat
   Future<void> loadChatMessages(String chatId) async {
     try {
-      _chatService.getChatMessages(chatId).listen((messages) {
-        _messages[chatId] = messages;
-        notifyListeners();
-      });
+      final querySnapshot =
+          await FirebaseFirestore.instance
+              .collection('messages')
+              .where('chatId', isEqualTo: chatId)
+              .orderBy(
+                'timestamp',
+                descending: false,
+              ) // Fetch messages in ascending order
+              .get();
+
+      final messages =
+          querySnapshot.docs.map((doc) {
+            return MessageModel.fromMap(doc.data(), doc.id); // Pass document ID
+          }).toList();
+
+      _messages[chatId] = messages;
+      notifyListeners();
     } catch (e) {
       print('Error loading messages: $e');
     }
@@ -63,7 +79,33 @@ class ChatProvider with ChangeNotifier {
     String content,
   ) async {
     try {
-      await _chatService.sendMessage(chatId, senderId, content);
+      final messageRef = await _firestore.collection('messages').add({
+        'chatId': chatId,
+        'senderId': senderId,
+        'content': content,
+        'timestamp': DateTime.now(),
+        'isRead': false,
+        'isAgreement': false,
+      });
+
+      // Update the local message with the Firestore document ID
+      final message = MessageModel(
+        id: messageRef.id, // Use the Firestore document ID
+        chatId: chatId,
+        senderId: senderId,
+        content: content,
+        timestamp: DateTime.now(),
+        isRead: false,
+      );
+
+      // Add the message locally
+      addMessageLocally(chatId, message);
+
+      // Update the last message in the chat document
+      await _firestore.collection('chats').doc(chatId).update({
+        'lastMessage': content,
+        'lastMessageTime': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       print('Error sending message: $e');
       rethrow;
@@ -99,12 +141,22 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
+  // Add a message locally
   void addMessageLocally(String chatId, MessageModel message) {
-    if (_messages.containsKey(chatId)) {
-      _messages[chatId]!.add(message);
-    } else {
-      _messages[chatId] = [message];
+    final chatMessages = _messages[chatId] ?? [];
+
+    // Check if the message already exists in the list
+    if (chatMessages.any((m) => m.id == message.id)) {
+      return; // Do not add duplicate messages
     }
+
+    // Add the new message
+    chatMessages.add(message);
+
+    // Sort messages by timestamp
+    chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    _messages[chatId] = chatMessages;
     notifyListeners();
   }
 
@@ -163,4 +215,61 @@ class ChatProvider with ChangeNotifier {
       print('Error loading shop chats: $e');
     }
   }
+
+  // Send an agreement message
+  Future<void> sendAgreement(
+    String chatId,
+    String senderId,
+    String content,
+  ) async {
+    try {
+      final messageRef = await _firestore.collection('messages').add({
+        'chatId': chatId,
+        'senderId': senderId,
+        'content': content,
+        'timestamp': DateTime.now(),
+        'isRead': false,
+        'isAgreement': true,
+        'agreementAccepted': null,
+      });
+
+      // Update the local message with the Firestore document ID
+      final agreementMessage = MessageModel(
+        id: messageRef.id, // Use the Firestore document ID
+        chatId: chatId,
+        senderId: senderId,
+        content: content,
+        timestamp: DateTime.now(),
+        isRead: false,
+        isAgreement: true,
+        agreementAccepted: null,
+      );
+
+      // Add the message locally
+      addMessageLocally(chatId, agreementMessage);
+
+      // Update the last message in the chat document
+      await _firestore.collection('chats').doc(chatId).update({
+        'lastMessage': content,
+        'lastMessageTime': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error sending agreement: $e');
+      rethrow;
+    }
+  }
+
+  // Update agreement status
+  Future<void> updateAgreementStatus(String messageId, bool accepted) async {
+    try {
+      await _firestore.collection('messages').doc(messageId).update({
+        'agreementAccepted': accepted,
+      });
+    } catch (e) {
+      print('Error updating agreement status: $e');
+      rethrow;
+    }
+  }
+
+  
 }

@@ -1,3 +1,4 @@
+// lib/models/message_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MessageModel {
@@ -7,6 +8,8 @@ class MessageModel {
   final String content;
   final DateTime timestamp;
   final bool isRead;
+  final bool isAgreement; // Indicates if the message is an agreement
+  final bool? agreementAccepted; // Null if not yet accepted/rejected
 
   MessageModel({
     required this.id,
@@ -15,19 +18,27 @@ class MessageModel {
     required this.content,
     required this.timestamp,
     required this.isRead,
+    this.isAgreement = false, // Default to false
+    this.agreementAccepted, // Default to null
   });
 
-  factory MessageModel.fromMap(Map<String, dynamic> map) {
+  
+
+  // Factory method to create a MessageModel from a Firestore document with document ID
+  factory MessageModel.fromMap(Map<String, dynamic> map, String documentId) {
     return MessageModel(
-      id: map['id'] as String,
+      id: documentId, // Use the Firestore document ID
       chatId: map['chatId'] as String,
       senderId: map['senderId'] as String,
       content: map['content'] as String,
       timestamp: (map['timestamp'] as Timestamp).toDate(),
       isRead: map['isRead'] as bool,
+      isAgreement: map['isAgreement'] as bool? ?? false,
+      agreementAccepted: map['agreementAccepted'] as bool?,
     );
   }
 
+  // Convert MessageModel to a map for Firestore
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -36,9 +47,12 @@ class MessageModel {
       'content': content,
       'timestamp': Timestamp.fromDate(timestamp),
       'isRead': isRead,
+      'isAgreement': isAgreement,
+      'agreementAccepted': agreementAccepted,
     };
   }
 
+  // Create a copy of the MessageModel with updated fields
   MessageModel copyWith({
     String? id,
     String? chatId,
@@ -46,6 +60,8 @@ class MessageModel {
     String? content,
     DateTime? timestamp,
     bool? isRead,
+    bool? isAgreement,
+    bool? agreementAccepted,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -54,6 +70,8 @@ class MessageModel {
       content: content ?? this.content,
       timestamp: timestamp ?? this.timestamp,
       isRead: isRead ?? this.isRead,
+      isAgreement: isAgreement ?? this.isAgreement,
+      agreementAccepted: agreementAccepted ?? this.agreementAccepted,
     );
   }
 }

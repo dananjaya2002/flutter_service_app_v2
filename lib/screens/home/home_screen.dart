@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/shop_model.dart';
 import '../../models/category_model.dart';
 import '../../providers/shop_provider.dart';
+import '../../providers/user_provider.dart';
 import '../shop/shop_details_screen.dart';
 import '../auth/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -179,7 +180,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        title: Consumer<UserProvider>(
+          builder: (context, userProvider, _) {
+            final username =
+                userProvider.user?.name ??
+                'User'; // Default to 'User' if name is null
+            return Text('Welcome, $username');
+          },
+        ),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) {

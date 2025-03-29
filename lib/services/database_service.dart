@@ -385,7 +385,7 @@ class DatabaseService {
           (snapshot) =>
               snapshot.docs.map((doc) {
                 Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-                return MessageModel.fromMap(data);
+                return MessageModel.fromMap(data, doc.id);
               }).toList(),
         );
   }
@@ -506,7 +506,7 @@ class DatabaseService {
         .map((snapshot) {
           return snapshot.docs.map((doc) {
             Map<String, dynamic> data = doc.data();
-            return MessageModel.fromMap(data);
+            return MessageModel.fromMap(data, doc.id);
           }).toList();
         });
   }

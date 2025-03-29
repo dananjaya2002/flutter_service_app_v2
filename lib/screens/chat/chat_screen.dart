@@ -1,3 +1,5 @@
+//lib/chat/chat_screen.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/chat_provider.dart';
@@ -59,35 +61,176 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (userId != null) {
       final messageContent = _messageController.text.trim();
-      final message = MessageModel(
-        id: '', // Temporary ID, Firestore will generate the actual ID
-        chatId: widget.chatId,
-        senderId: userId,
-        content: messageContent,
-        timestamp: DateTime.now(),
-        isRead: false,
-      );
-
-      // Add the message locally to update the UI immediately
-      chatProvider.addMessageLocally(widget.chatId, message);
 
       // Clear the input field
       _messageController.clear();
 
-      // Scroll to the bottom
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
-
+      // Send the message to Firestore
       try {
-        // Send the message to Firestore
         await chatProvider.sendMessage(widget.chatId, userId, messageContent);
+
+        // Scroll to the bottom after sending the message
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
       } catch (e) {
-        // Handle errors (e.g., remove the message if sending fails)
+        // Handle errors
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
       }
+    }
+  }
+
+  Future<void> _sendAgreement() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    final userId = userProvider.user?.uid;
+
+    if (userId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('User not logged in.')));
+      return;
+    }
+
+    try {
+      // Send the agreement message to Firestore
+      await chatProvider.sendAgreement(
+        widget.chatId,
+        userId,
+        'Agreement: Please accept the terms of the service.',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Agreement sent successfully!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send agreement: $e')));
+    }
+  }
+
+  Future<void> _acceptAgreement(String messageId) async {
+    print('Accepting agreement for message ID: $messageId');
+    if (messageId.isEmpty) {
+      print('Error: Message ID is empty');
+      return;
+    } // Debug log
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    try {
+      await chatProvider.updateAgreementStatus(messageId, true);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Agreement accepted!')));
+    } catch (e) {
+      print('Error updating agreement status: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to accept agreement: $e')));
+    }
+  }
+
+  Future<void> _rejectAgreement(String messageId) async {
+    print('Rejecting agreement for message ID: $messageId'); // Debug log
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    try {
+      await chatProvider.updateAgreementStatus(messageId, false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Agreement rejected!')));
+    } catch (e) {
+      print('Error updating agreement status: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to reject agreement: $e')));
+    }
+  }
+
+  void _showRatingPopup(BuildContext context) {
+    // Implementation for showing rating popup
+    final TextEditingController _ratingController = TextEditingController();
+    final TextEditingController _commentController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Add Rating and Comment'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _ratingController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Rating (1-5)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _commentController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Comment',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final rating = int.tryParse(_ratingController.text);
+                final comment = _commentController.text.trim();
+
+                if (rating == null || rating < 1 || rating > 5) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a valid rating (1-5).'),
+                    ),
+                  );
+                  return;
+                }
+
+                // Save the rating and comment (e.g., to Firestore)
+                _saveRatingAndComment(rating, comment);
+
+                Navigator.of(context).pop(); // Close the dialog
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _saveRatingAndComment(int rating, String comment) async {
+    try {
+      await FirebaseFirestore.instance.collection('ratings').add({
+        'chatId': widget.chatId,
+        'rating': rating,
+        'comment': comment,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Rating and comment submitted successfully!'),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit rating and comment: $e')),
+      );
     }
   }
 
@@ -106,6 +249,15 @@ class _ChatScreenState extends State<ChatScreen> {
             return Text(snapshot.data?.name ?? 'Chat');
           },
         ),
+        actions: [
+          if (userProvider.user?.role ==
+              'service_provider') // Only for service providers
+            IconButton(
+              onPressed: _sendAgreement,
+              icon: const Icon(Icons.assignment),
+              tooltip: 'Send Agreement',
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -119,8 +271,74 @@ class _ChatScreenState extends State<ChatScreen> {
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
-                    final message = messages[index];
+                    final message =
+                        messages[index]; // Display messages in natural order
                     final isMe = message.senderId == userId;
+
+                    if (message.isAgreement) {
+                      return Column(
+                        crossAxisAlignment:
+                            isMe
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.yellow.shade100,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              message.content,
+                              style: const TextStyle(color: Colors.black),
+                            ),
+                          ),
+                          if (message.agreementAccepted == null && !isMe)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                TextButton(
+                                  onPressed: () => _acceptAgreement(message.id),
+                                  child: const Text('Accept'),
+                                ),
+                                TextButton(
+                                  onPressed: () => _rejectAgreement(message.id),
+                                  child: const Text('Reject'),
+                                ),
+                              ],
+                            ),
+                          if (message.agreementAccepted != null)
+                            Column(
+                              crossAxisAlignment:
+                                  isMe
+                                      ? CrossAxisAlignment.end
+                                      : CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  message.agreementAccepted == true
+                                      ? 'Agreement Accepted'
+                                      : 'Agreement Rejected',
+                                  style: TextStyle(
+                                    color:
+                                        message.agreementAccepted == true
+                                            ? Colors.green
+                                            : Colors.red,
+                                  ),
+                                ),
+                                if (message.agreementAccepted == true && !isMe)
+                                  TextButton(
+                                    onPressed: () => _showRatingPopup(context),
+                                    child: const Text('Add Rating and Comment'),
+                                  ),
+                              ],
+                            ),
+                        ],
+                      );
+                    }
 
                     return Align(
                       alignment:
@@ -157,7 +375,7 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withAlpha((0.2 * 255).toInt()),
                   spreadRadius: 1,
                   blurRadius: 3,
                   offset: const Offset(0, -1),

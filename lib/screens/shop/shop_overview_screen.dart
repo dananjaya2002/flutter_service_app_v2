@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/shop_model.dart';
 import '../../providers/shop_provider.dart';
 import '../../providers/user_provider.dart';
@@ -14,11 +15,20 @@ class ShopOverviewScreen extends StatefulWidget {
 class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
   bool _isLoading = true;
   ShopModel? _shop;
+  List<Map<String, dynamic>> _ratings = []; // Store ratings with user details
+  int _agreementsCount = 0;
+  int _unreadMessagesCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadShopData();
+    _loadShopData().then((_) {
+      if (_shop != null) {
+        _loadRatings();
+        _loadAgreementsCount();
+        _loadUnreadMessagesCount();
+      }
+    });
   }
 
   Future<void> _loadShopData() async {
@@ -41,6 +51,98 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     }
   }
 
+  Future<void> _loadRatings() async {
+    try {
+      final ratingsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('ratings')
+              .where('shopId', isEqualTo: _shop!.id)
+              .get();
+
+      final List<Map<String, dynamic>> ratings = [];
+
+      for (var doc in ratingsSnapshot.docs) {
+        final ratingData = doc.data();
+        final chatId = ratingData['chatId'];
+
+        final chatSnapshot =
+            await FirebaseFirestore.instance
+                .collection('chats')
+                .doc(chatId)
+                .get();
+
+        final chatData = chatSnapshot.data();
+        final customerId = chatData?['customerId'];
+
+        if (customerId != null) {
+          final userSnapshot =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(customerId)
+                  .get();
+
+          final userData = userSnapshot.data();
+          ratings.add({
+            'name': userData?['name'] ?? 'Anonymous',
+            'profileImage': userData?['profileImage'],
+            'rating': ratingData['rating'],
+            'comment': ratingData['comment'],
+          });
+        }
+      }
+
+      setState(() {
+        _ratings = ratings;
+      });
+    } catch (e) {
+      print('Error loading ratings: $e');
+    }
+  }
+
+  Future<void> _loadAgreementsCount() async {
+    try {
+      final agreementsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('agreements')
+              .where('ownerId', isEqualTo: _shop!.ownerId)
+              .get();
+
+      setState(() {
+        _agreementsCount = agreementsSnapshot.docs.length;
+      });
+    } catch (e) {
+      print('Error loading agreements count: $e');
+    }
+  }
+
+  Future<void> _loadUnreadMessagesCount() async {
+    try {
+      final messagesSnapshot =
+          await FirebaseFirestore.instance
+              .collection('messages')
+              .where('shopId', isEqualTo: _shop!.id)
+              .where('isRead', isEqualTo: false)
+              .get();
+
+      setState(() {
+        _unreadMessagesCount = messagesSnapshot.docs.length;
+      });
+    } catch (e) {
+      print('Error loading unread messages count: $e');
+    }
+  }
+
+  double _calculateAverageRating() {
+    if (_ratings.isEmpty) return 0.0;
+
+    final totalRating = _ratings.fold<double>(
+      0.0,
+      (sum, rating) => sum + (rating['rating'] as int),
+    );
+
+    return totalRating / _ratings.length;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -54,20 +156,12 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_shop!.name),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: _showEditShopPopup,
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(_shop!.name)),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildStoreHeader(),
+            _buildShopDetails(),
             _buildShopOverview(),
             _buildEditButtons(),
             _buildServiceList(),
@@ -78,77 +172,77 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     );
   }
 
-  Widget _buildStoreHeader() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final imageWidth = screenWidth * 0.95;
-
+  Widget _buildShopDetails() {
+    final shop = _shop!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_shop!.imageUrl != null)
-          Center(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                _shop!.imageUrl!,
-                width: imageWidth,
-                height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: imageWidth,
-                    height: 200,
-                    color: Colors.grey.shade300,
-                    child: const Icon(
-                      Icons.store,
-                      size: 50,
-                      color: Colors.white,
-                    ),
-                  );
-                },
-              ),
-            ),
-          )
-        else
-          Center(
-            child: Container(
-              width: imageWidth,
+        shop.imageUrl != null
+            ? Image.network(
+              shop.imageUrl!,
+              width: double.infinity,
               height: 200,
-              color: Colors.grey.shade300,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: double.infinity,
+                  height: 200,
+                  color: Colors.grey[300],
+                  child: const Icon(Icons.store, size: 50, color: Colors.white),
+                );
+              },
+            )
+            : Container(
+              width: double.infinity,
+              height: 200,
+              color: Colors.grey[300],
               child: const Icon(Icons.store, size: 50, color: Colors.white),
             ),
-          ),
         const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _shop!.name,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                shop.name,
                 style: const TextStyle(
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.star, color: Colors.amber),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${_shop!.rating.toStringAsFixed(1)} (${_shop!.reviewCount})',
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _shop!.description ?? 'No description available',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
-              ),
-            ],
-          ),
+            ),
+            Row(
+              children: [
+                ...List.generate(5, (index) {
+                  final averageRating = _calculateAverageRating();
+                  return Icon(
+                    index < averageRating.floor()
+                        ? Icons.star
+                        : (index < averageRating
+                            ? Icons.star_half
+                            : Icons.star_border),
+                    color: Colors.amber,
+                    size: 20,
+                  );
+                }),
+              ],
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${_calculateAverageRating().toStringAsFixed(1)} (${_ratings.length})',
+              style: const TextStyle(fontSize: 16),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'About',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          shop.description ?? 'No description available',
+          style: const TextStyle(fontSize: 16),
         ),
         const SizedBox(height: 16),
       ],
@@ -157,12 +251,12 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
 
   Widget _buildShopOverview() {
     final List<Map<String, String>> overviewItems = [
-      {'label': 'Waiting', 'count': '95'},
-      {'label': 'Completed', 'count': '95'},
-      {'label': 'Items', 'count': '95'},
-      {'label': 'Agreements', 'count': '95'},
-      {'label': 'Avg Ratings', 'count': '95'},
-      {'label': 'Messages', 'count': '95'},
+      {'label': 'Agreements', 'count': _agreementsCount.toString()},
+      {
+        'label': 'Avg Ratings',
+        'count': _calculateAverageRating().toStringAsFixed(1),
+      },
+      {'label': 'Messages', 'count': _unreadMessagesCount.toString()},
     ];
 
     return Container(
@@ -314,29 +408,52 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: 3, // Example number of reviews
-          itemBuilder: (context, index) {
-            return ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.person)),
-              title: const Text('Nethmina Wickramasinghe'),
-              subtitle: const Text(
-                'Great service and reasonable prices! Highly recommend.',
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.star, color: Colors.amber),
-                  SizedBox(width: 4),
-                  Text('4'),
-                ],
-              ),
-            );
-          },
-        ),
+        if (_ratings.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text('No reviews yet.', style: TextStyle(fontSize: 16)),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _ratings.length,
+            itemBuilder: (context, index) {
+              final rating = _ratings[index];
+              return _buildReview(
+                rating['name'],
+                rating['comment'],
+                rating['rating'],
+                rating['profileImage'],
+              );
+            },
+          ),
       ],
+    );
+  }
+
+  Widget _buildReview(
+    String name,
+    String comment,
+    int rating,
+    String? profileImage,
+  ) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundImage:
+            profileImage != null ? NetworkImage(profileImage) : null,
+        child: profileImage == null ? const Icon(Icons.person) : null,
+      ),
+      title: Text(name),
+      subtitle: Text(comment),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star, color: Colors.amber),
+          const SizedBox(width: 4),
+          Text(rating.toString()),
+        ],
+      ),
     );
   }
 
@@ -392,7 +509,6 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                // Prepare the updated data
                 final updatedData = {
                   'name': nameController.text.trim(),
                   'description': descriptionController.text.trim(),
@@ -400,17 +516,11 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
                 };
 
                 try {
-                  // Call the updateShop method with the correct arguments
                   await Provider.of<ShopProvider>(
                     context,
                     listen: false,
-                  ).updateShop(
-                    _shop!.id, // Pass the shop ID
-                    updatedData, // Pass the updated data
-                    null, // No new image file provided
-                  );
+                  ).updateShop(_shop!.id, updatedData, null);
 
-                  // Update the local state
                   setState(() {
                     _shop = _shop!.copyWith(
                       name: updatedData['name'],
@@ -419,7 +529,7 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
                     );
                   });
 
-                  Navigator.pop(context); // Close the dialog
+                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Shop details updated!')),
                   );
@@ -452,32 +562,48 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Input field to add a new service
                     TextFormField(
                       controller: servicesController,
                       decoration: const InputDecoration(
-                        labelText: 'Add a Service',
+                        labelText: 'Add or Edit a Service',
                         border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // List of existing services with delete functionality
                     SizedBox(
-                      height: 200, // Provide a fixed height for the ListView
+                      height: 200,
                       child: ListView.builder(
                         itemCount: services.length,
                         itemBuilder: (context, index) {
                           return ListTile(
                             title: Text(services[index]),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () {
-                                setState(() {
-                                  services.removeAt(
-                                    index,
-                                  ); // Remove the service
-                                });
-                              },
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.edit,
+                                    color: Colors.blue,
+                                  ),
+                                  onPressed: () {
+                                    servicesController.text = services[index];
+                                    setState(() {
+                                      services.removeAt(index);
+                                    });
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      services.removeAt(index);
+                                    });
+                                  },
+                                ),
+                              ],
                             ),
                           );
                         },
@@ -487,17 +613,14 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
                 ),
               ),
               actions: [
-                // Cancel button to close the dialog
                 TextButton(
                   onPressed: () {
-                    Navigator.pop(context); // Close the dialog
+                    Navigator.pop(context);
                   },
                   child: const Text('Cancel'),
                 ),
-                // Save button to update the services
                 ElevatedButton(
                   onPressed: () async {
-                    // Add the new service if the input is not empty
                     if (servicesController.text.trim().isNotEmpty) {
                       setState(() {
                         services.add(servicesController.text.trim());
@@ -506,18 +629,16 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
                     }
 
                     try {
-                      // Update the services in the database
                       await Provider.of<ShopProvider>(
                         context,
                         listen: false,
                       ).updateServices(_shop!.id, services);
 
-                      // Update the local state
                       setState(() {
                         _shop = _shop!.copyWith(services: services);
                       });
 
-                      Navigator.pop(context); // Close the dialog
+                      Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Services updated!')),
                       );

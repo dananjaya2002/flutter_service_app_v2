@@ -20,6 +20,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  double _rating = 3.0; // Default rating value
 
   @override
   void initState() {
@@ -148,36 +149,59 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showRatingPopup(BuildContext context) {
-    // Implementation for showing rating popup
-    final TextEditingController _ratingController = TextEditingController();
     final TextEditingController _commentController = TextEditingController();
+    double localRating = _rating; // Use a local variable for the slider value
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Add Rating and Comment'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _ratingController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Rating (1-5)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _commentController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Comment',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Slider for rating
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Rating (1-5)',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Slider(
+                        value: localRating,
+                        min: 1,
+                        max: 5,
+                        divisions: 4, // Divisions for 1, 2, 3, 4, 5
+                        label: localRating.toString(),
+                        onChanged: (value) {
+                          setState(() {
+                            localRating =
+                                value; // Update the local slider value
+                          });
+                        },
+                      ),
+                      Text(
+                        'Selected Rating: ${localRating.toInt()}',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // TextField for comment
+                  TextField(
+                    controller: _commentController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Comment',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           actions: [
             TextButton(
@@ -188,20 +212,19 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                final rating = int.tryParse(_ratingController.text);
                 final comment = _commentController.text.trim();
 
-                if (rating == null || rating < 1 || rating > 5) {
+                if (localRating < 1 || localRating > 5) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Please enter a valid rating (1-5).'),
+                      content: Text('Please select a valid rating.'),
                     ),
                   );
                   return;
                 }
 
                 // Save the rating and comment (e.g., to Firestore)
-                _saveRatingAndComment(rating, comment);
+                _saveRatingAndComment(localRating.toInt(), comment);
 
                 Navigator.of(context).pop(); // Close the dialog
               },
@@ -212,15 +235,41 @@ class _ChatScreenState extends State<ChatScreen> {
       },
     );
   }
+  /// Fetch shopId from chatId
+  Future<String?> _getShopIdFromChatId(String chatId) async {
+    try {
+      final chatSnapshot =
+          await FirebaseFirestore.instance
+              .collection('chats')
+              .doc(chatId)
+              .get();
+
+      if (chatSnapshot.exists) {
+        return chatSnapshot.data()?['shopId'] as String?;
+      }
+    } catch (e) {
+      print('Error fetching shopId: $e');
+    }
+    return null;
+  }
 
   Future<void> _saveRatingAndComment(int rating, String comment) async {
     try {
-      await FirebaseFirestore.instance.collection('ratings').add({
-        'chatId': widget.chatId,
-        'rating': rating,
-        'comment': comment,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      // Fetch the shopId from the chatId
+    final shopId = await _getShopIdFromChatId(widget.chatId);
+
+
+      // Use chatId as the document ID to ensure uniqueness
+      await FirebaseFirestore.instance
+          .collection('ratings')
+          .doc(widget.chatId) // Use chatId as the document ID
+          .set({
+            'chatId': widget.chatId,
+            'shopId': shopId, // Add shopId
+            'rating': rating,
+            'comment': comment,
+            'timestamp': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true)); // Overwrite if the document exists
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -330,9 +379,41 @@ class _ChatScreenState extends State<ChatScreen> {
                                   ),
                                 ),
                                 if (message.agreementAccepted == true && !isMe)
-                                  TextButton(
-                                    onPressed: () => _showRatingPopup(context),
-                                    child: const Text('Add Rating and Comment'),
+                                  GestureDetector(
+                                    onTap: () => _showRatingPopup(context),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      margin: const EdgeInsets.only(top: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue, // Background color
+                                        borderRadius: BorderRadius.circular(
+                                          12,
+                                        ), // Rounded corners
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.grey.withAlpha(
+                                              (0.3 * 255).toInt(),
+                                            ), // Shadow color
+                                            spreadRadius: 1,
+                                            blurRadius: 3,
+                                            offset: const Offset(
+                                              0,
+                                              2,
+                                            ), // Shadow position
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Text(
+                                        'Add Rating and Comment',
+                                        style: TextStyle(
+                                          color: Colors.white, // Text color
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),

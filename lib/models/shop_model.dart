@@ -9,8 +9,8 @@ class ShopModel {
   final String? phoneNumber;
   final GeoPoint? location;
   final List<String> categories;
-  final double rating;
-  final int reviewCount;
+  double rating;
+  int reviewCount;
   final Timestamp createdAt;
   final bool isVerified;
   final bool isPublished;

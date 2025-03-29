@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/shop_model.dart';
 import '../../providers/shop_provider.dart';
 import '../../providers/user_provider.dart';
@@ -21,11 +22,13 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
   bool _isFavorite = false;
   ShopModel? _shop;
   String? _errorMessage;
+  List<Map<String, dynamic>> _ratings = []; // Store ratings with user details
 
   @override
   void initState() {
     super.initState();
     _loadShopDetails();
+    _loadRatings();
   }
 
   Future<void> _loadShopDetails() async {
@@ -74,6 +77,68 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
         });
       }
     }
+  }
+
+  Future<void> _loadRatings() async {
+    try {
+      final ratingsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('ratings')
+              .where('chatId', isGreaterThanOrEqualTo: widget.shop.id)
+              .get();
+
+      final List<Map<String, dynamic>> ratings = [];
+
+      for (var doc in ratingsSnapshot.docs) {
+        final ratingData = doc.data();
+        final chatId = ratingData['chatId'];
+
+        // Fetch the chat document to get the customerId
+        final chatSnapshot =
+            await FirebaseFirestore.instance
+                .collection('chats')
+                .doc(chatId)
+                .get();
+
+        final chatData = chatSnapshot.data();
+        final customerId = chatData?['customerId'];
+
+        // Fetch user details using customerId
+        if (customerId != null) {
+          final userSnapshot =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(customerId)
+                  .get();
+
+          final userData = userSnapshot.data();
+          ratings.add({
+            'name': userData?['name'] ?? 'Anonymous',
+            'profileImage': userData?['profileImage'], // Null if unavailable
+            'rating': ratingData['rating'],
+            'comment': ratingData['comment'],
+          });
+        }
+      }
+
+      setState(() {
+        _ratings = ratings;
+      });
+    } catch (e) {
+      print('Error loading ratings: $e');
+    }
+  }
+
+  /// Calculate the average rating from the ratings list
+  double _calculateAverageRating() {
+    if (_ratings.isEmpty) return 0.0;
+
+    final totalRating = _ratings.fold<double>(
+      0.0,
+      (sum, rating) => sum + (rating['rating'] as int),
+    );
+
+    return totalRating / _ratings.length;
   }
 
   Future<void> _toggleFavorite() async {
@@ -145,7 +210,6 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
         _shop!.id,
         userId,
         _shop!.ownerId,
-        
       );
 
       setState(() {
@@ -249,7 +313,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
           children: [
             Expanded(
               child: Text(
-                shop.name,
+                widget.shop.name,
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -257,24 +321,26 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
               ),
             ),
             Row(
-              children:
-                  List.generate(
-                    shop.rating.round(),
-                    (index) =>
-                        const Icon(Icons.star, color: Colors.amber, size: 20),
-                  ) +
-                  List.generate(
-                    5 - shop.rating.round(),
-                    (index) => const Icon(
-                      Icons.star_border,
-                      color: Colors.amber,
-                      size: 20,
-                    ),
-                  ),
+              children: [
+                // Display stars based on the average rating
+                ...List.generate(5, (index) {
+                  final averageRating = _calculateAverageRating();
+                  return Icon(
+                    index < averageRating.floor()
+                        ? Icons.star
+                        : (index < averageRating
+                            ? Icons.star_half
+                            : Icons.star_border),
+                    color: Colors.amber,
+                    size: 20,
+                  );
+                }),
+              ],
             ),
             const SizedBox(width: 8),
+            // Display average rating and number of ratings
             Text(
-              '${shop.rating.toStringAsFixed(1)} (${shop.reviewCount})',
+              '${_calculateAverageRating().toStringAsFixed(1)} (${_ratings.length})',
               style: const TextStyle(fontSize: 16),
             ),
           ],
@@ -312,7 +378,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 150,
+          height: 150, // Fixed height for the ListView
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: shop.services.length,
@@ -328,8 +394,25 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        _buildReview('John Doe', 'Great service and reasonable prices!', 4),
-        _buildReview('Jane Smith', 'Highly recommend this shop.', 5),
+        if (_ratings.isEmpty)
+          const Text('No reviews yet.', style: TextStyle(fontSize: 16))
+        else
+          ListView.builder(
+            shrinkWrap:
+                true, // Allows the ListView to take only as much space as needed
+            physics:
+                const NeverScrollableScrollPhysics(), // Prevents scrolling inside the ListView
+            itemCount: _ratings.length,
+            itemBuilder: (context, index) {
+              final rating = _ratings[index];
+              return _buildReview(
+                rating['name'],
+                rating['comment'],
+                rating['rating'],
+                rating['profileImage'],
+              );
+            },
+          ),
       ],
     );
   }
@@ -381,7 +464,12 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
     );
   }
 
-  Widget _buildReview(String name, String reviewText, int rating) {
+  Widget _buildReview(
+    String name,
+    String reviewText,
+    int rating,
+    String? profileImage,
+  ) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
       child: Padding(
@@ -389,7 +477,17 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CircleAvatar(radius: 20, child: Icon(Icons.person)),
+            CircleAvatar(
+              radius: 20,
+              backgroundImage:
+                  profileImage != null
+                      ? NetworkImage(profileImage)
+                      : null, // Use profile image if available
+              child:
+                  profileImage == null
+                      ? const Icon(Icons.person, size: 20) // Default icon
+                      : null,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

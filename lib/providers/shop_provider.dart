@@ -561,19 +561,22 @@ class ShopProvider with ChangeNotifier {
   }
 
   Future<String?> getShopNameById(String shopId) async {
-  try {
-    final shopDoc = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(shopId)
-        .get();
+    try {
+      final shopDoc =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .get();
 
-    if (shopDoc.exists) {
-      return shopDoc.data()?['name'] as String?;
+      if (shopDoc.exists) {
+        return shopDoc.data()?['name'] as String?;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching shop name: $e');
+      return null;
     }
-    return null;
-  } catch (e) {
-    print('Error fetching shop name: $e');
-    return null;
   }
-}
+
+  
 }

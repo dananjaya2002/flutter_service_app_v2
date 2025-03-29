@@ -35,14 +35,8 @@ class FavoritesScreen extends StatelessWidget {
           } else {
             final shops = snapshot.data ?? [];
             return ListView.builder(
-              itemCount:
-                  shops.length, // Ensure itemCount matches the list length
+              itemCount: shops.length,
               itemBuilder: (context, index) {
-                // Safeguard to prevent out-of-range errors
-                if (index < 0 || index >= shops.length) {
-                  return const SizedBox(); // Return an empty widget if index is invalid
-                }
-
                 final shop = shops[index];
                 return ListTile(
                   leading:
@@ -53,7 +47,8 @@ class FavoritesScreen extends StatelessWidget {
                           : const CircleAvatar(child: Icon(Icons.store)),
                   title: Text(shop.name),
                   subtitle: Text(
-                    '${shop.rating.toStringAsFixed(1)} (${shop.reviewCount})',
+                    shop.description ?? 'No description available',
+                    style: const TextStyle(fontSize: 14),
                   ),
                   onTap: () {
                     Navigator.push(

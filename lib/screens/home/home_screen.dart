@@ -7,6 +7,7 @@ import '../../providers/user_provider.dart';
 import '../shop/shop_details_screen.dart';
 import '../auth/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -48,6 +49,59 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadShops() async {
     try {
       await _shopProvider.loadShops();
+
+      // Fetch all ratings in a single query
+      final ratingsSnapshot =
+          await FirebaseFirestore.instance.collection('ratings').get();
+
+      // Group ratings by shopId
+      final ratingsByShopId = <String, List<Map<String, dynamic>>>{};
+      for (var doc in ratingsSnapshot.docs) {
+        final data = doc.data();
+        final shopId = data['shopId'] as String;
+        ratingsByShopId.putIfAbsent(shopId, () => []).add(data);
+      }
+
+      for (var shop in _shopProvider.shops) {
+        try {
+          // Get ratings for the current shop
+          final shopRatings = ratingsByShopId[shop.id] ?? [];
+
+          // Calculate the total rating and average rating
+          final totalRating = shopRatings.fold<double>(
+            0.0,
+            (sum, rating) => sum + (rating['rating'] as int),
+          );
+
+          final averageRating =
+              shopRatings.isNotEmpty ? totalRating / shopRatings.length : 0.0;
+
+          // Check if the values have changed before updating Firestore
+          if (shop.rating != averageRating ||
+              shop.reviewCount != shopRatings.length) {
+            shop.rating = averageRating;
+            shop.reviewCount = shopRatings.length;
+
+            // Update the shop document with the new values
+            await FirebaseFirestore.instance
+                .collection('shops')
+                .doc(shop.id)
+                .update({
+                  'rating': shop.rating,
+                  'reviewCount': shop.reviewCount,
+                });
+          }
+
+          // Debug logs
+          print(
+            'Shop: ${shop.name}, Rating: ${shop.rating}, Reviews: ${shop.reviewCount}',
+          );
+        } catch (e) {
+          // Handle errors for individual shops
+          print('Error processing shop ${shop.name}: $e');
+        }
+      }
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -435,8 +489,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  shop.imageUrl ??
-                      'https://via.placeholder.com/150', // Default image URL
+                  shop.imageUrl ?? 'https://via.placeholder.com/150',
                   width: 100,
                   height: 100,
                   fit: BoxFit.cover,
@@ -468,7 +521,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.star, color: Colors.amber, size: 20),
+                        ...List.generate(
+                          5,
+                          (index) => Icon(
+                            index < shop.rating.floor()
+                                ? Icons.star
+                                : (index < shop.rating
+                                    ? Icons.star_half
+                                    : Icons.star_border),
+                            color: Colors.amber,
+                            size: 20,
+                          ),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${shop.rating.toStringAsFixed(1)} (${shop.reviewCount})',

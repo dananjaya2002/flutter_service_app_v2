@@ -84,67 +84,34 @@ class ChatProvider with ChangeNotifier {
     return _chatService.getUnreadMessageCount(userId);
   }
 
-  // Create a new chat
-  Future<ChatModel> createChat(String shopId, String customerId) async {
-    try {
-      return await _chatService.createChat(shopId, customerId);
-    } catch (e) {
-      print('Error creating chat: $e');
-      rethrow;
-    }
-  }
-
   // Create or get existing chat
   Future<String> createOrGetChat(
+    String shopId,
     String customerId,
     String serviceProviderId,
-    String shopId,
   ) async {
     try {
-      // Check if chat already exists
-      final existingChats = await _chatService.getUserChats(customerId).first;
-      final existingChat = existingChats.firstWhere(
-        (chat) => chat.shopId == shopId,
-        orElse:
-            () => ChatModel(
-              id: '',
-              shopId: '',
-              customerId: '',
-              serviceProviderId: '',
-              lastMessage: '',
-              lastMessageTime: DateTime.now(),
-              isRead: true,
-              participants: {},
-            ),
-      );
-
-      if (existingChat.id.isNotEmpty) {
-        return existingChat.id;
-      }
-
-      // Create new chat if none exists
-      final newChat = await _chatService.createChat(shopId, customerId);
-      return newChat.id;
+      final chat = await _chatService.createOrGetChat(shopId, customerId);
+      return chat.id;
     } catch (e) {
       print('Error creating or getting chat: $e');
       rethrow;
     }
   }
 
+  void addMessageLocally(String chatId, MessageModel message) {
+    if (_messages.containsKey(chatId)) {
+      _messages[chatId]!.add(message);
+    } else {
+      _messages[chatId] = [message];
+    }
+    notifyListeners();
+  }
+
   // Set active chat
   void setActiveChat(String chatId) {
     _activeChatId = chatId;
     notifyListeners();
-  }
-
-  // Get service provider chats
-  Stream<List<ChatModel>> getServiceProviderChats(String userId) {
-    return _chatService.getUserChats(userId);
-  }
-
-  // Get customer chats
-  Stream<List<ChatModel>> getCustomerChats(String userId) {
-    return _chatService.getUserChats(userId);
   }
 
   // Get personal chats stream

@@ -313,7 +313,7 @@ class DatabaseService {
         lastMessageTime: DateTime.now(),
         lastMessage: 'Chat started',
         isRead: true,
-        participants: {customerId: true, serviceProviderId: true},
+       
       );
 
       DocumentReference docRef = await chatsCollection.add(chat.toMap());

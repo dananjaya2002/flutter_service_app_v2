@@ -8,7 +8,6 @@ class ChatModel {
   final String lastMessage;
   final DateTime lastMessageTime;
   final bool isRead;
-  final Map<String, dynamic> participants;
 
   ChatModel({
     required this.id,
@@ -18,9 +17,9 @@ class ChatModel {
     required this.lastMessage,
     required this.lastMessageTime,
     required this.isRead,
-    required this.participants,
   });
 
+  // Factory method to create a ChatModel from Firestore data
   factory ChatModel.fromMap(Map<String, dynamic> map) {
     return ChatModel(
       id: map['id'] as String,
@@ -30,10 +29,10 @@ class ChatModel {
       lastMessage: map['lastMessage'] as String,
       lastMessageTime: (map['lastMessageTime'] as Timestamp).toDate(),
       isRead: map['isRead'] as bool,
-      participants: map['participants'] as Map<String, dynamic>,
     );
   }
 
+  // Convert ChatModel to a Firestore-compatible map
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -43,10 +42,10 @@ class ChatModel {
       'lastMessage': lastMessage,
       'lastMessageTime': Timestamp.fromDate(lastMessageTime),
       'isRead': isRead,
-      'participants': participants,
     };
   }
 
+  // Create a copy of ChatModel with updated fields
   ChatModel copyWith({
     String? id,
     String? shopId,
@@ -55,7 +54,6 @@ class ChatModel {
     String? lastMessage,
     DateTime? lastMessageTime,
     bool? isRead,
-    Map<String, dynamic>? participants,
   }) {
     return ChatModel(
       id: id ?? this.id,
@@ -65,7 +63,6 @@ class ChatModel {
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
       isRead: isRead ?? this.isRead,
-      participants: participants ?? this.participants,
     );
   }
 }
@@ -76,7 +73,7 @@ class Message {
   final String senderId;
   final String receiverId;
   final String message;
-  final Timestamp timestamp;
+  final DateTime timestamp;
   final bool isRead;
   final String? imageUrl;
 
@@ -91,6 +88,7 @@ class Message {
     this.imageUrl,
   });
 
+  // Factory method to create a Message from Firestore data
   factory Message.fromMap(Map<String, dynamic> map) {
     return Message(
       id: map['id'] ?? '',
@@ -98,19 +96,21 @@ class Message {
       senderId: map['senderId'] ?? '',
       receiverId: map['receiverId'] ?? '',
       message: map['message'] ?? '',
-      timestamp: map['timestamp'] ?? Timestamp.now(),
+      timestamp: (map['timestamp'] as Timestamp).toDate(),
       isRead: map['isRead'] ?? false,
       imageUrl: map['imageUrl'],
     );
   }
 
+  // Convert Message to a Firestore-compatible map
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'chatId': chatId,
       'senderId': senderId,
       'receiverId': receiverId,
       'message': message,
-      'timestamp': timestamp,
+      'timestamp': Timestamp.fromDate(timestamp),
       'isRead': isRead,
       'imageUrl': imageUrl,
     };

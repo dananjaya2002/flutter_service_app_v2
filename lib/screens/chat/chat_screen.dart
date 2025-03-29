@@ -4,6 +4,7 @@ import '../../providers/chat_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../models/shop_model.dart';
+import '../../models/message_model.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -53,17 +54,36 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_messageController.text.trim().isEmpty) return;
 
     final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
     final userId = userProvider.user?.uid;
 
     if (userId != null) {
-      try {
-        await Provider.of<ChatProvider>(
-          context,
-          listen: false,
-        ).sendMessage(widget.chatId, userId, _messageController.text.trim());
-        _messageController.clear();
+      final messageContent = _messageController.text.trim();
+      final message = MessageModel(
+        id: '', // Temporary ID, Firestore will generate the actual ID
+        chatId: widget.chatId,
+        senderId: userId,
+        content: messageContent,
+        timestamp: DateTime.now(),
+        isRead: false,
+      );
+
+      // Add the message locally to update the UI immediately
+      chatProvider.addMessageLocally(widget.chatId, message);
+
+      // Clear the input field
+      _messageController.clear();
+
+      // Scroll to the bottom
+      WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToBottom();
+      });
+
+      try {
+        // Send the message to Firestore
+        await chatProvider.sendMessage(widget.chatId, userId, messageContent);
       } catch (e) {
+        // Handle errors (e.g., remove the message if sending fails)
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
@@ -90,38 +110,43 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: chatProvider.getMessagesForChat(widget.chatId).length,
-              itemBuilder: (context, index) {
-                final message =
-                    chatProvider.getMessagesForChat(widget.chatId)[index];
-                final isMe = message.senderId == userId;
+            child: Consumer<ChatProvider>(
+              builder: (context, chatProvider, _) {
+                final messages = chatProvider.getMessagesForChat(widget.chatId);
 
-                return Align(
-                  alignment:
-                      isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          isMe
-                              ? Theme.of(context).primaryColor
-                              : Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      message.content,
-                      style: TextStyle(
-                        color: isMe ? Colors.white : Colors.black,
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final message = messages[index];
+                    final isMe = message.senderId == userId;
+
+                    return Align(
+                      alignment:
+                          isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              isMe
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          message.content,
+                          style: TextStyle(
+                            color: isMe ? Colors.white : Colors.black,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 );
               },
             ),

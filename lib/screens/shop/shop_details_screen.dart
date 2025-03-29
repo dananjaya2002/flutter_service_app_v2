@@ -142,9 +142,10 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
       });
 
       final chatId = await chatProvider.createOrGetChat(
+        _shop!.id,
         userId,
         _shop!.ownerId,
-        _shop!.id,
+        
       );
 
       setState(() {

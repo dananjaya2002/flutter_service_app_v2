@@ -528,11 +528,11 @@ class ShopProvider with ChangeNotifier {
     }
   }
 
-  Future<void> updateServices(String shopId, List<String> services) async {
+  Future<void> updateServices(
+    String shopId,
+    List<Map<String, dynamic>> services,
+  ) async {
     try {
-      _isLoading = true;
-      notifyListeners();
-
       // Reference to the services subcollection
       final servicesRef = FirebaseFirestore.instance
           .collection('shops')
@@ -547,18 +547,38 @@ class ShopProvider with ChangeNotifier {
 
       // Add updated services
       for (var service in services) {
-        await servicesRef.add({'name': service, 'createdAt': Timestamp.now()});
+        await servicesRef.add({
+          'name': service['name'],
+          'description': service['description'],
+          'createdAt': Timestamp.now(),
+        });
       }
-
-      _isLoading = false;
-      notifyListeners();
     } catch (e) {
-      _isLoading = false;
-      notifyListeners();
-      print('Error updating services: $e');
-      rethrow;
+      throw Exception('Failed to update services: $e');
     }
   }
+
+  Future<List<Map<String, dynamic>>> fetchServices(String shopId) async {
+  try {
+    final servicesRef = FirebaseFirestore.instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('services');
+
+    final servicesSnapshot = await servicesRef.get();
+
+    return servicesSnapshot.docs.map((doc) {
+      final data = doc.data();
+      return {
+        'id': doc.id,
+        'name': data['name'],
+        'description': data['description'] ?? '', // Optional description
+      };
+    }).toList();
+  } catch (e) {
+    throw Exception('Failed to fetch services: $e');
+  }
+}
 
   Future<String?> getShopNameById(String shopId) async {
     try {
@@ -577,6 +597,4 @@ class ShopProvider with ChangeNotifier {
       return null;
     }
   }
-
-  
 }

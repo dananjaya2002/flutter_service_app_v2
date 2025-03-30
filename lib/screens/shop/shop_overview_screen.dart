@@ -38,8 +38,17 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
 
     try {
       final shop = await shopProvider.getShopByOwnerId(userId);
+
+      // Fetch services from the Firestore subcollection
+      final services =
+          shop != null ? await shopProvider.fetchServices(shop.id) : [];
+
       setState(() {
-        _shop = shop;
+        if (shop != null) {
+          _shop = shop.copyWith(
+            services: services.cast<Map<String, dynamic>>(),
+          ); // Update _shop with services
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -157,14 +166,21 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(_shop!.name)),
+      appBar: AppBar(
+        title: Text(_shop!.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: _showEditShopPopup,
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildShopDetails(),
             _buildShopOverview(),
-            _buildEditButtons(),
             _buildServiceList(),
             _buildReviews(),
           ],
@@ -175,78 +191,99 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
 
   Widget _buildShopDetails() {
     final shop = _shop!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        shop.imageUrl != null
-            ? Image.network(
-              shop.imageUrl!,
-              width: double.infinity,
-              height: 200,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: double.infinity,
-                  height: 200,
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.store, size: 50, color: Colors.white),
-                );
-              },
-            )
-            : Container(
-              width: double.infinity,
-              height: 200,
-              color: Colors.grey[300],
-              child: const Icon(Icons.store, size: 50, color: Colors.white),
-            ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                shop.name,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            // Shop Image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child:
+                  shop.imageUrl != null
+                      ? Image.network(
+                        shop.imageUrl!,
+                        width: double.infinity,
+                        height: 200,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: double.infinity,
+                            height: 200,
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.store,
+                              size: 50,
+                              color: Colors.white,
+                            ),
+                          );
+                        },
+                      )
+                      : Container(
+                        width: double.infinity,
+                        height: 200,
+                        color: Colors.grey[300],
+                        child: const Icon(
+                          Icons.store,
+                          size: 50,
+                          color: Colors.white,
+                        ),
+                      ),
             ),
+            const SizedBox(height: 16),
+
+            // Shop Name and Rating
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                ...List.generate(5, (index) {
-                  final averageRating = _calculateAverageRating();
-                  return Icon(
-                    index < averageRating.floor()
-                        ? Icons.star
-                        : (index < averageRating
-                            ? Icons.star_half
-                            : Icons.star_border),
-                    color: Colors.amber,
-                    size: 20,
-                  );
-                }),
+                Expanded(
+                  child: Text(
+                    shop.name,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    ...List.generate(5, (index) {
+                      final averageRating = _calculateAverageRating();
+                      return Icon(
+                        index < averageRating.floor()
+                            ? Icons.star
+                            : (index < averageRating
+                                ? Icons.star_half
+                                : Icons.star_border),
+                        color: Colors.amber,
+                        size: 20,
+                      );
+                    }),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${_calculateAverageRating().toStringAsFixed(1)} (${_ratings.length})',
+                  style: const TextStyle(fontSize: 16),
+                ),
               ],
             ),
-            const SizedBox(width: 8),
+            const SizedBox(height: 16),
+
+            // About Section
+            const Text(
+              'About',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
             Text(
-              '${_calculateAverageRating().toStringAsFixed(1)} (${_ratings.length})',
-              style: const TextStyle(fontSize: 16),
+              shop.description ?? 'No description available',
+              style: const TextStyle(fontSize: 16, color: Colors.black87),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        const Text(
-          'About',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          shop.description ?? 'No description available',
-          style: const TextStyle(fontSize: 16),
-        ),
-        const SizedBox(height: 16),
-      ],
+      ),
     );
   }
 
@@ -316,21 +353,6 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     );
   }
 
-  Widget _buildEditButtons() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          ElevatedButton(
-            onPressed: _showEditShopPopup,
-            child: const Text('Edit Shop'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildServiceList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,7 +388,7 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     );
   }
 
-  Widget _buildServiceItem(String service) {
+  Widget _buildServiceItem(Map<String, dynamic> service) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Container(
@@ -390,9 +412,15 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
             const Icon(Icons.build, size: 50, color: Colors.grey),
             const SizedBox(height: 8),
             Text(
-              service,
+              service['name'] ?? 'Unnamed Service',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              service['description'] ?? 'No description available',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12),
             ),
           ],
         ),
@@ -401,37 +429,48 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
   }
 
   Widget _buildReviews() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-          child: Text(
-            'Reviews',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
+    return Card(
+      elevation: 2, // Subtle shadow for a modern look
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12), // Rounded corners
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16), // Padding inside the card
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title
+            const Text(
+              'Reviews',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+
+            // No Reviews Message
+            if (_ratings.isEmpty)
+              const Text(
+                'No reviews yet.',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              )
+            else
+              // Reviews List
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _ratings.length,
+                itemBuilder: (context, index) {
+                  final rating = _ratings[index];
+                  return _buildReview(
+                    rating['name'],
+                    rating['comment'],
+                    rating['rating'],
+                    rating['profileImage'],
+                  );
+                },
+              ),
+          ],
         ),
-        if (_ratings.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text('No reviews yet.', style: TextStyle(fontSize: 16)),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _ratings.length,
-            itemBuilder: (context, index) {
-              final rating = _ratings[index];
-              return _buildReview(
-                rating['name'],
-                rating['comment'],
-                rating['rating'],
-                rating['profileImage'],
-              );
-            },
-          ),
-      ],
+      ),
     );
   }
 
@@ -441,20 +480,68 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     int rating,
     String? profileImage,
   ) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundImage:
-            profileImage != null ? NetworkImage(profileImage) : null,
-        child: profileImage == null ? const Icon(Icons.person) : null,
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8), // Space between reviews
+      padding: const EdgeInsets.all(12), // Padding inside the container
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8), // Rounded corners
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withAlpha((0.3 * 255).toInt()), // Shadow color
+            spreadRadius: 2, // Spread radius
+            blurRadius: 5, // Blur radius
+            offset: const Offset(0, 3), // Shadow position
+          ),
+        ],
       ),
-      title: Text(name),
-      subtitle: Text(comment),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.star, color: Colors.amber),
-          const SizedBox(width: 4),
-          Text(rating.toString()),
+          // Profile Image
+          CircleAvatar(
+            radius: 24,
+            backgroundImage:
+                profileImage != null ? NetworkImage(profileImage) : null,
+            child:
+                profileImage == null
+                    ? const Icon(Icons.person, size: 24)
+                    : null,
+          ),
+          const SizedBox(width: 12), // Space between image and text
+          // Review Content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Reviewer Name
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Review Comment
+                Text(
+                  comment,
+                  style: const TextStyle(fontSize: 14, color: Colors.black87),
+                ),
+                const SizedBox(height: 8),
+                // Rating
+                Row(
+                  children: List.generate(5, (index) {
+                    return Icon(
+                      index < rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 16,
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -556,7 +643,9 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
       MaterialPageRoute(
         builder:
             (context) => ManageServicesScreen(
-              services: List.from(_shop!.services), // Pass the current services
+              services: List<Map<String, dynamic>>.from(
+                _shop!.services,
+              ), // Ensure correct structure
               onSave: (updatedServices) async {
                 try {
                   // Update the services in Firestore

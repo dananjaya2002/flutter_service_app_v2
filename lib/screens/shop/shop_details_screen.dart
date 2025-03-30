@@ -45,6 +45,10 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
       );
 
       final shop = await shopProvider.getShopById(widget.shop.id);
+      final services = await shopProvider.fetchServices(widget.shop.id);
+
+      final updatedShop = shop?.copyWith(services: services);
+
       if (shop == null) {
         setState(() {
           _errorMessage = 'Shop not found';
@@ -64,7 +68,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
 
       if (mounted) {
         setState(() {
-          _shop = shop;
+          _shop = updatedShop;
           _isFavorite = isFavorite;
           _isLoading = false;
         });
@@ -81,10 +85,11 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
 
   Future<void> _loadRatings() async {
     try {
+      // Query ratings where the shopId matches the current shop's ID
       final ratingsSnapshot =
           await FirebaseFirestore.instance
               .collection('ratings')
-              .where('chatId', isGreaterThanOrEqualTo: widget.shop.id)
+              .where('shopId', isEqualTo: widget.shop.id) // Filter by shopId
               .get();
 
       final List<Map<String, dynamic>> ratings = [];
@@ -382,8 +387,10 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: shop.services.length,
-            itemBuilder:
-                (context, index) => _buildServiceCard(shop.services[index]),
+            itemBuilder: (context, index) {
+              final service = shop.services[index];
+              return _buildServiceCard(service);
+            },
           ),
         ),
         const SizedBox(height: 16),
@@ -430,7 +437,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
     );
   }
 
-  Widget _buildServiceCard(String serviceName) {
+  Widget _buildServiceCard(Map<String, dynamic> service) {
     return Container(
       width: 150,
       margin: const EdgeInsets.only(right: 16),
@@ -446,16 +453,16 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              serviceName,
+              service['name'] ?? 'Unnamed Service',
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8.0),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Text(
-                'High-quality service.',
+                service['description'] ?? 'No description available',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12),
+                style: const TextStyle(fontSize: 12),
               ),
             ),
           ],

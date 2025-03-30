@@ -14,7 +14,7 @@ class ShopModel {
   final Timestamp createdAt;
   final bool isVerified;
   final bool isPublished;
-  final List<String> services;
+  final List<Map<String, dynamic>> services; // Updated to handle dynamic values
 
   ShopModel({
     required this.id,
@@ -30,9 +30,10 @@ class ShopModel {
     required this.createdAt,
     this.isVerified = false,
     this.isPublished = true,
-    this.services = const [],
+    this.services = const [], // Default to an empty list
   });
 
+  /// Factory method to create a `ShopModel` from a Firestore document map
   factory ShopModel.fromMap(Map<String, dynamic> map) {
     return ShopModel(
       id: map['id'] ?? '',
@@ -48,10 +49,13 @@ class ShopModel {
       createdAt: map['createdAt'] ?? Timestamp.now(),
       isVerified: map['isVerified'] ?? false,
       isPublished: map['isPublished'] ?? true,
-      services: List<String>.from(map['services'] ?? []),
+      services: List<Map<String, dynamic>>.from(
+        map['services'] ?? [],
+      ), // Updated to handle dynamic services
     );
   }
 
+  /// Converts the `ShopModel` to a map for Firestore
   Map<String, dynamic> toMap() {
     return {
       'ownerId': ownerId,
@@ -66,10 +70,11 @@ class ShopModel {
       'createdAt': createdAt,
       'isVerified': isVerified,
       'isPublished': isPublished,
-      'services': services,
+      'services': services, // Updated to include dynamic services
     };
   }
 
+  /// Creates a copy of the `ShopModel` with updated fields
   ShopModel copyWith({
     String? name,
     String? description,
@@ -82,7 +87,7 @@ class ShopModel {
     Timestamp? createdAt,
     bool? isVerified,
     bool? isPublished,
-    List<String>? services,
+    List<Map<String, dynamic>>? services, // Updated to handle dynamic services
   }) {
     return ShopModel(
       id: id,
@@ -98,7 +103,7 @@ class ShopModel {
       createdAt: createdAt ?? this.createdAt,
       isVerified: isVerified ?? this.isVerified,
       isPublished: isPublished ?? this.isPublished,
-      services: services ?? this.services,
+      services: services ?? this.services, // Updated to handle dynamic services
     );
   }
 }

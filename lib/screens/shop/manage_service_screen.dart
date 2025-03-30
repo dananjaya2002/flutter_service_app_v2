@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 class ManageServicesScreen extends StatefulWidget {
-  final List<String> services;
-  final Function(List<String>) onSave;
+  final List<Map<String, dynamic>>
+  services; // List of services with name and description
+  final Function(List<Map<String, dynamic>>) onSave;
 
   const ManageServicesScreen({
     Key? key,
@@ -15,8 +16,10 @@ class ManageServicesScreen extends StatefulWidget {
 }
 
 class _ManageServicesScreenState extends State<ManageServicesScreen> {
-  late List<String> _services;
-  final TextEditingController _serviceController = TextEditingController();
+  late List<Map<String, dynamic>> _services;
+  final TextEditingController _serviceNameController = TextEditingController();
+  final TextEditingController _serviceDescriptionController =
+      TextEditingController();
 
   @override
   void initState() {
@@ -26,21 +29,27 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
 
   @override
   void dispose() {
-    _serviceController.dispose();
+    _serviceNameController.dispose();
+    _serviceDescriptionController.dispose();
     super.dispose();
   }
 
   void _addService() {
-    if (_serviceController.text.trim().isNotEmpty) {
+    if (_serviceNameController.text.trim().isNotEmpty) {
       setState(() {
-        _services.add(_serviceController.text.trim());
+        _services.add({
+          'name': _serviceNameController.text.trim(),
+          'description': _serviceDescriptionController.text.trim(),
+        });
       });
-      _serviceController.clear();
+      _serviceNameController.clear();
+      _serviceDescriptionController.clear();
     }
   }
 
   void _editService(int index) {
-    _serviceController.text = _services[index];
+    _serviceNameController.text = _services[index]['name'];
+    _serviceDescriptionController.text = _services[index]['description'];
     setState(() {
       _services.removeAt(index); // Temporarily remove the service
     });
@@ -72,11 +81,20 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
         child: Column(
           children: [
             TextFormField(
-              controller: _serviceController,
+              controller: _serviceNameController,
               decoration: const InputDecoration(
-                labelText: 'Add or Edit a Service',
+                labelText: 'Service Name',
                 border: OutlineInputBorder(),
               ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _serviceDescriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Service Description',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
             ),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -89,7 +107,8 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                 itemCount: _services.length,
                 itemBuilder: (context, index) {
                   return ListTile(
-                    title: Text(_services[index]),
+                    title: Text(_services[index]['name']),
+                    subtitle: Text(_services[index]['description']),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

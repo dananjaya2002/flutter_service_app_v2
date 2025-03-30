@@ -6,8 +6,6 @@ import '../../providers/chat_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../models/shop_model.dart';
-import '../../models/message_model.dart';
-
 class ChatScreen extends StatefulWidget {
   final String chatId;
 
@@ -20,14 +18,53 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  double _rating = 3.0; // Default rating value
+  double _rating = 3.0;
+  bool _canSendAgreement = false; 
 
   @override
-  void initState() {
-    super.initState();
-    _loadMessages();
-    _markChatAsRead();
+void initState() {
+  super.initState();
+  _initializeChatDetails();
+  _loadMessages();
+  _markChatAsRead();
+}
+
+Future<void> _initializeChatDetails() async {
+  try {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final userId = userProvider.user?.uid;
+
+    if (userProvider.user?.role != 'service_provider' || userId == null) {
+      return; // Exit if the user is not a service provider or not logged in
+    }
+
+    // Fetch the serviceProviderId from the chats collection using chatId
+    final chatSnapshot = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .get();
+
+    if (!chatSnapshot.exists) {
+      print('Chat not found.');
+      return;
+    }
+
+    final serviceProviderId = chatSnapshot.data()?['serviceProviderId'] as String?;
+    if (serviceProviderId == null) {
+      print('Service provider ID not found in chat.');
+      return;
+    }
+
+    // Compare the serviceProviderId with the current user's userId
+    if (serviceProviderId == userId) {
+      setState(() {
+        _canSendAgreement = true; // Allow the button to be shown
+      });
+    }
+  } catch (e) {
+    print('Error initializing chat details: $e');
   }
+}
 
   Future<void> _loadMessages() async {
     await Provider.of<ChatProvider>(
@@ -286,7 +323,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
-    final chatProvider = Provider.of<ChatProvider>(context);
+    
     final shopProvider = Provider.of<ShopProvider>(context);
     final userId = userProvider.user?.uid;
 
@@ -299,8 +336,7 @@ class _ChatScreenState extends State<ChatScreen> {
           },
         ),
         actions: [
-          if (userProvider.user?.role ==
-              'service_provider') // Only for service providers
+          if (_canSendAgreement) // Only for service providers
             IconButton(
               onPressed: _sendAgreement,
               icon: const Icon(Icons.assignment),

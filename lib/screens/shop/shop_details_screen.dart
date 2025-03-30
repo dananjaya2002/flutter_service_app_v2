@@ -47,7 +47,17 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
       final shop = await shopProvider.getShopById(widget.shop.id);
       final services = await shopProvider.fetchServices(widget.shop.id);
 
-      final updatedShop = shop?.copyWith(services: services);
+      // Ensure services include the imageUrl field
+      final updatedServices =
+          services.map((service) {
+            return {
+              'name': service['name'],
+              'description': service['description'],
+              'imageUrl': service['imageUrl'], // Include imageUrl
+            };
+          }).toList();
+
+      final updatedShop = shop?.copyWith(services: updatedServices);
 
       if (shop == null) {
         setState(() {
@@ -383,7 +393,7 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 150, // Fixed height for the ListView
+          height: 230, // Fixed height for the ListView
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: shop.services.length,
@@ -445,12 +455,28 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
         elevation: 3,
         child: Column(
           children: [
-            Container(
-              width: double.infinity,
-              height: 80,
-              color: Colors.grey[300],
-              child: const Icon(Icons.image, size: 50),
-            ),
+            // Display the service image or a default placeholder
+            service['imageUrl'] != null && service['imageUrl']!.isNotEmpty
+                ? Image.network(
+                  service['imageUrl'],
+                  width: double.infinity,
+                  height: 80,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: double.infinity,
+                      height: 80,
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.image_not_supported, size: 50),
+                    );
+                  },
+                )
+                : Container(
+                  width: double.infinity,
+                  height: 80,
+                  color: Colors.grey[300],
+                  child: const Icon(Icons.image, size: 50),
+                ),
             const SizedBox(height: 8),
             Text(
               service['name'] ?? 'Unnamed Service',

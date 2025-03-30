@@ -97,6 +97,7 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
             'profileImage': userData?['profileImage'],
             'rating': ratingData['rating'],
             'comment': ratingData['comment'],
+            'timestamp': ratingData['timestamp'], // Add timestamp field
           });
         }
       }
@@ -354,37 +355,54 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
   }
 
   Widget _buildServiceList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+    return Card(
+      elevation: 2, // Subtle shadow for a modern look
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12), // Rounded corners
+      ),
+      margin: const EdgeInsets.all(5), // Add margin around the card
+      child: Padding(
+        padding: const EdgeInsets.all(16), // Padding inside the card
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title and Manage Services Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Services Offered',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                TextButton(
+                  onPressed: _navigateToManageServicesScreen,
+                  child: const Text('Manage Services'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // No Services Message or Services List
+            if (_shop!.services.isEmpty)
               const Text(
-                'Services Offered',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                'No services added.',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              )
+            else
+              SizedBox(
+                height: 230, // Fixed height for the ListView
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _shop!.services.length,
+                  itemBuilder: (context, index) {
+                    final service = _shop!.services[index];
+                    return _buildServiceItem(service);
+                  },
+                ),
               ),
-              TextButton(
-                onPressed: _navigateToManageServicesScreen,
-                child: const Text('Manage Services'),
-              ),
-            ],
-          ),
+          ],
         ),
-        SizedBox(
-          height: 120, // Fixed height for the ListView
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: _shop!.services.length,
-            itemBuilder: (context, index) {
-              final service = _shop!.services[index];
-              return _buildServiceItem(service);
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -409,14 +427,49 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.build, size: 50, color: Colors.grey),
+            // Display the service image or a default image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child:
+                  service['imageUrl'] != null && service['imageUrl']!.isNotEmpty
+                      ? Image.network(
+                        service['imageUrl'],
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: 100,
+                            height: 100,
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 50,
+                              color: Colors.grey,
+                            ),
+                          );
+                        },
+                      )
+                      : Container(
+                        width: 100,
+                        height: 100,
+                        color: Colors.grey[300],
+                        child: const Icon(
+                          Icons.image,
+                          size: 50,
+                          color: Colors.grey,
+                        ),
+                      ),
+            ),
             const SizedBox(height: 8),
+            // Service Name
             Text(
               service['name'] ?? 'Unnamed Service',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
+            // Service Description
             Text(
               service['description'] ?? 'No description available',
               textAlign: TextAlign.center,
@@ -429,44 +482,70 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
   }
 
   Widget _buildReviews() {
+    // Sort ratings by latest (assuming each rating has a 'timestamp' field)
+    final sortedRatings = List<Map<String, dynamic>>.from(_ratings)..sort(
+      (a, b) =>
+          (b['timestamp'] as Timestamp).compareTo(a['timestamp'] as Timestamp),
+    );
+
+    // Show only the latest 10 reviews
+    final latestRatings = sortedRatings.take(10).toList();
+
     return Card(
       elevation: 2, // Subtle shadow for a modern look
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12), // Rounded corners
       ),
+      margin: const EdgeInsets.all(16), // Add margin around the card
       child: Padding(
         padding: const EdgeInsets.all(16), // Padding inside the card
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Title
-            const Text(
-              'Reviews',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Reviews',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                TextButton(
+                  onPressed: () {
+                    _showAllRatingsPopup(); // Show all ratings in a popup
+                  },
+                  child: const Text('View All'),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
 
-            // No Reviews Message
+            // No Reviews Message or Reviews List
             if (_ratings.isEmpty)
-              const Text(
-                'No reviews yet.',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+              SizedBox(
+                width: double.infinity, // Ensure the card takes full width
+                child: const Text(
+                  'No reviews yet.',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
               )
             else
-              // Reviews List
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _ratings.length,
-                itemBuilder: (context, index) {
-                  final rating = _ratings[index];
-                  return _buildReview(
-                    rating['name'],
-                    rating['comment'],
-                    rating['rating'],
-                    rating['profileImage'],
-                  );
-                },
+              SizedBox(
+                height: 120, // Fixed height for the ListView
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: latestRatings.length,
+                  itemBuilder: (context, index) {
+                    final rating = latestRatings[index];
+                    return _buildReview(
+                      rating['name'],
+                      rating['comment'],
+                      rating['rating'],
+                      rating['profileImage'],
+                    );
+                  },
+                ),
               ),
           ],
         ),
@@ -480,70 +559,105 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     int rating,
     String? profileImage,
   ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8), // Space between reviews
-      padding: const EdgeInsets.all(12), // Padding inside the container
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8), // Rounded corners
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withAlpha((0.3 * 255).toInt()), // Shadow color
-            spreadRadius: 2, // Spread radius
-            blurRadius: 5, // Blur radius
-            offset: const Offset(0, 3), // Shadow position
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Profile Image
-          CircleAvatar(
-            radius: 24,
-            backgroundImage:
-                profileImage != null ? NetworkImage(profileImage) : null,
-            child:
-                profileImage == null
-                    ? const Icon(Icons.person, size: 24)
-                    : null,
-          ),
-          const SizedBox(width: 12), // Space between image and text
-          // Review Content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Reviewer Name
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Review Comment
-                Text(
-                  comment,
-                  style: const TextStyle(fontSize: 14, color: Colors.black87),
-                ),
-                const SizedBox(height: 8),
-                // Rating
-                Row(
-                  children: List.generate(5, (index) {
-                    return Icon(
-                      index < rating ? Icons.star : Icons.star_border,
-                      color: Colors.amber,
-                      size: 16,
-                    );
-                  }),
-                ),
-              ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Container(
+        width: 150,
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8), // Rounded corners
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withAlpha(
+                (0.3 * 255).toInt(),
+              ), // Subtle shadow
+              spreadRadius: 1,
+              blurRadius: 3,
+              offset: const Offset(0, 2), // Shadow position
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundImage:
+                  profileImage != null ? NetworkImage(profileImage) : null,
+              child:
+                  profileImage == null
+                      ? const Icon(Icons.person, size: 24)
+                      : null,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              comment,
+              style: const TextStyle(fontSize: 12, color: Colors.black87),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                return Icon(
+                  index < rating ? Icons.star : Icons.star_border,
+                  color: Colors.amber,
+                  size: 16,
+                );
+              }),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  void _showAllRatingsPopup() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('All Ratings'),
+          content: SizedBox(
+            width: double.maxFinite, // Ensure the dialog takes full width
+            child:
+                _ratings.isEmpty
+                    ? const Text(
+                      'No ratings available.',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    )
+                    : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _ratings.length,
+                      itemBuilder: (context, index) {
+                        final rating = _ratings[index];
+                        return _buildReview(
+                          rating['name'],
+                          rating['comment'],
+                          rating['rating'],
+                          rating['profileImage'],
+                        );
+                      },
+                    ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close the popup
+              },
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -552,86 +666,133 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     final descriptionController = TextEditingController(
       text: _shop?.description,
     );
-    final imageUrlController = TextEditingController(text: _shop?.imageUrl);
+    String? imageUrl = _shop?.imageUrl; // Initialize with the current image URL
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Edit Shop Details'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Shop Name',
-                    border: OutlineInputBorder(),
-                  ),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Edit Shop Details'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Shop Name Field
+                    TextFormField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Shop Name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Description Field
+                    TextFormField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Image Picker
+                    InkWell(
+                      onTap: () async {
+                        final shopProvider = Provider.of<ShopProvider>(
+                          context,
+                          listen: false,
+                        );
+                        final pickedImageUrl = await shopProvider.pickImage();
+
+                        if (pickedImageUrl.isNotEmpty) {
+                          setState(() {
+                            imageUrl = pickedImageUrl; // Update the image URL
+                          });
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Image upload canceled or failed'),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        height: 150,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child:
+                            imageUrl != null
+                                ? Image.network(imageUrl!, fit: BoxFit.cover)
+                                : const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.add_photo_alternate_outlined),
+                                      SizedBox(height: 8),
+                                      Text('Tap to add an image'),
+                                    ],
+                                  ),
+                                ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Close the dialog
+                  },
+                  child: const Text('Cancel'),
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: imageUrlController,
-                  decoration: const InputDecoration(
-                    labelText: 'Image URL',
-                    border: OutlineInputBorder(),
-                  ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final updatedData = {
+                      'name': nameController.text.trim(),
+                      'description': descriptionController.text.trim(),
+                      'imageUrl': imageUrl?.trim(),
+                    };
+
+                    try {
+                      await Provider.of<ShopProvider>(
+                        context,
+                        listen: false,
+                      ).updateShop(_shop!.id, updatedData, null);
+
+                      setState(() {
+                        _shop = _shop!.copyWith(
+                          name: updatedData['name'],
+                          description: updatedData['description'],
+                          imageUrl: updatedData['imageUrl'],
+                        );
+                      });
+
+                      Navigator.pop(context); // Close the dialog
+
+                      // Refresh the shop overview screen
+                      await _loadShopData();
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Shop details updated!')),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to update shop: $e')),
+                      );
+                    }
+                  },
+                  child: const Text('Save'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Close the dialog
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final updatedData = {
-                  'name': nameController.text.trim(),
-                  'description': descriptionController.text.trim(),
-                  'imageUrl': imageUrlController.text.trim(),
-                };
-
-                try {
-                  await Provider.of<ShopProvider>(
-                    context,
-                    listen: false,
-                  ).updateShop(_shop!.id, updatedData, null);
-
-                  setState(() {
-                    _shop = _shop!.copyWith(
-                      name: updatedData['name'],
-                      description: updatedData['description'],
-                      imageUrl: updatedData['imageUrl'],
-                    );
-                  });
-
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Shop details updated!')),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to update shop: $e')),
-                  );
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
+            );
+          },
         );
       },
     );

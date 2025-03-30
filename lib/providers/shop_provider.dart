@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/shop_model.dart';
 import '../models/category_model.dart';
-import '../models/comment_model.dart';
 import '../services/database_service.dart';
 import '../services/storage_service.dart';
 import '../services/location_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ShopProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -245,45 +247,6 @@ class ShopProvider with ChangeNotifier {
       print('Error publishing shop: $e');
       rethrow;
     }
-  }
-
-  // Add comment to shop
-  Future<void> addComment(
-    String shopId,
-    String userId,
-    String userName,
-    String comment,
-    double rating,
-  ) async {
-    try {
-      _isLoading = true;
-      notifyListeners();
-
-      CommentModel commentModel = CommentModel(
-        id: '',
-        shopId: shopId,
-        userId: userId,
-        userName: userName,
-        comment: comment,
-        rating: rating,
-        timestamp: Timestamp.now(),
-      );
-
-      await _databaseService.addComment(commentModel);
-
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _isLoading = false;
-      notifyListeners();
-      print('Error adding comment: $e');
-      rethrow;
-    }
-  }
-
-  // Get shop comments
-  Stream<List<CommentModel>> getShopComments(String shopId) {
-    return _databaseService.getShopComments(shopId);
   }
 
   // Get shop by ID
@@ -550,6 +513,7 @@ class ShopProvider with ChangeNotifier {
         await servicesRef.add({
           'name': service['name'],
           'description': service['description'],
+          'imageUrl': service['imageUrl'], // Include the image URL
           'createdAt': Timestamp.now(),
         });
       }
@@ -559,26 +523,27 @@ class ShopProvider with ChangeNotifier {
   }
 
   Future<List<Map<String, dynamic>>> fetchServices(String shopId) async {
-  try {
-    final servicesRef = FirebaseFirestore.instance
-        .collection('shops')
-        .doc(shopId)
-        .collection('services');
+    try {
+      final servicesRef = FirebaseFirestore.instance
+          .collection('shops')
+          .doc(shopId)
+          .collection('services');
 
-    final servicesSnapshot = await servicesRef.get();
+      final servicesSnapshot = await servicesRef.get();
 
-    return servicesSnapshot.docs.map((doc) {
-      final data = doc.data();
-      return {
-        'id': doc.id,
-        'name': data['name'],
-        'description': data['description'] ?? '', // Optional description
-      };
-    }).toList();
-  } catch (e) {
-    throw Exception('Failed to fetch services: $e');
+      return servicesSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['name'],
+          'description': data['description'] ?? '', // Optional description
+          'imageUrl': data['imageUrl'] ?? '', // Include the image URL
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch services: $e');
+    }
   }
-}
 
   Future<String?> getShopNameById(String shopId) async {
     try {
@@ -595,6 +560,49 @@ class ShopProvider with ChangeNotifier {
     } catch (e) {
       print('Error fetching shop name: $e');
       return null;
+    }
+  }
+
+  // Upload image to Cloudinary
+  Future<String> pickImage() async {
+    try {
+      // Step 1: Pick an image from the device
+      final ImagePicker picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+      );
+
+      if (pickedFile == null) {
+        // User canceled the image picking
+        return '';
+      }
+
+      // Step 2: Upload the image to Cloudinary
+      final String cloudinaryUrl =
+          'https://api.cloudinary.com/v1_1/dw9iw9vhk/image/upload';
+      final String uploadPreset = 'image_type_1';
+
+      final request = http.MultipartRequest('POST', Uri.parse(cloudinaryUrl));
+      request.fields['upload_preset'] = uploadPreset;
+      request.files.add(
+        await http.MultipartFile.fromPath('file', pickedFile.path),
+      );
+
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        // Step 3: Parse the response to get the image URL
+        final responseData = await response.stream.bytesToString();
+        final Map<String, dynamic> jsonResponse = json.decode(responseData);
+        final String imageUrl = jsonResponse['secure_url'];
+
+        return imageUrl; // Return the image URL
+      } else {
+        throw Exception('Failed to upload image to Cloudinary');
+      }
+    } catch (e) {
+      print('Error picking or uploading image: $e');
+      return '';
     }
   }
 }

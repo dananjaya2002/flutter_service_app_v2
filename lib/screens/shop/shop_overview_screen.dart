@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/shop_model.dart';
 import '../../providers/shop_provider.dart';
 import '../../providers/user_provider.dart';
+import '../shop/manage_service_screen.dart'; // Update the path to the correct location of ManageServicesScreen
 
 class ShopOverviewScreen extends StatefulWidget {
   const ShopOverviewScreen({super.key});
@@ -258,24 +259,26 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
       },
       {'label': 'Messages', 'count': _unreadMessagesCount.toString()},
     ];
-
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.blue[50],
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 1.5,
+      child: SizedBox(
+        height: 150, // Fixed height for the GridView
+        child: GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 1.5,
+          ),
+          itemCount: overviewItems.length,
+          itemBuilder: (context, index) {
+            final item = overviewItems[index];
+            return _buildOverviewItem(item['label']!, item['count']!);
+          },
         ),
-        itemCount: overviewItems.length,
-        itemBuilder: (context, index) {
-          final item = overviewItems[index];
-          return _buildOverviewItem(item['label']!, item['count']!);
-        },
       ),
     );
   }
@@ -342,14 +345,14 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               TextButton(
-                onPressed: _showManageServicesPopup,
+                onPressed: _navigateToManageServicesScreen,
                 child: const Text('Manage Services'),
               ),
             ],
           ),
         ),
         SizedBox(
-          height: 120,
+          height: 120, // Fixed height for the ListView
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: _shop!.services.length,
@@ -547,116 +550,42 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     );
   }
 
-  void _showManageServicesPopup() {
-    final servicesController = TextEditingController();
-    final List<String> services = List.from(_shop!.services);
+  void _navigateToManageServicesScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => ManageServicesScreen(
+              services: List.from(_shop!.services), // Pass the current services
+              onSave: (updatedServices) async {
+                try {
+                  // Update the services in Firestore
+                  await Provider.of<ShopProvider>(
+                    context,
+                    listen: false,
+                  ).updateServices(_shop!.id, updatedServices);
 
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Manage Services'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: servicesController,
-                      decoration: const InputDecoration(
-                        labelText: 'Add or Edit a Service',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 200,
-                      child: ListView.builder(
-                        itemCount: services.length,
-                        itemBuilder: (context, index) {
-                          return ListTile(
-                            title: Text(services[index]),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.edit,
-                                    color: Colors.blue,
-                                  ),
-                                  onPressed: () {
-                                    servicesController.text = services[index];
-                                    setState(() {
-                                      services.removeAt(index);
-                                    });
-                                  },
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      services.removeAt(index);
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (servicesController.text.trim().isNotEmpty) {
-                      setState(() {
-                        services.add(servicesController.text.trim());
-                      });
-                      servicesController.clear();
-                    }
+                  // Update the local state
+                  setState(() {
+                    _shop = _shop!.copyWith(services: updatedServices);
+                  });
 
-                    try {
-                      await Provider.of<ShopProvider>(
-                        context,
-                        listen: false,
-                      ).updateServices(_shop!.id, services);
-
-                      setState(() {
-                        _shop = _shop!.copyWith(services: services);
-                      });
-
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Services updated!')),
-                      );
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to update services: $e'),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Services updated!')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to update services: $e')),
+                  );
+                }
+              },
+            ),
+      ),
     );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 }

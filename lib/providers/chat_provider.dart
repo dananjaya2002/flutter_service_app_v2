@@ -76,8 +76,9 @@ class ChatProvider with ChangeNotifier {
   Future<void> sendMessage(
     String chatId,
     String senderId,
-    String content,
-  ) async {
+    String content, {
+    bool isImage = false,
+  }) async {
     try {
       final messageRef = await _firestore.collection('messages').add({
         'chatId': chatId,
@@ -86,6 +87,7 @@ class ChatProvider with ChangeNotifier {
         'timestamp': DateTime.now(),
         'isRead': false,
         'isAgreement': false,
+        'isImage': isImage,
       });
 
       // Update the local message with the Firestore document ID
@@ -96,6 +98,7 @@ class ChatProvider with ChangeNotifier {
         content: content,
         timestamp: DateTime.now(),
         isRead: false,
+        isImage: isImage,
       );
 
       // Add the message locally
@@ -103,7 +106,7 @@ class ChatProvider with ChangeNotifier {
 
       // Update the last message in the chat document
       await _firestore.collection('chats').doc(chatId).update({
-        'lastMessage': content,
+        'lastMessage': isImage ? '📷 Image' : content, // Show "Image" for image messages
         'lastMessageTime': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -270,6 +273,4 @@ class ChatProvider with ChangeNotifier {
       rethrow;
     }
   }
-
-  
 }

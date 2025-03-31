@@ -21,6 +21,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   double _rating = 3.0;
   bool _canSendAgreement = false;
+  bool _isUploading = false; // Tracks if an image is being uploaded
 
   @override
   void initState() {
@@ -335,6 +336,80 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _pickAndSendImage() async {
+    final shopProvider = Provider.of<ShopProvider>(context, listen: false);
+
+    setState(() {
+      _isUploading = true; // Start uploading
+    });
+
+    try {
+      // Use the pickImage function from ShopProvider to pick and upload the image
+      final imageUrl = await shopProvider.pickImage();
+
+      if (imageUrl.isNotEmpty) {
+        // Send the image URL as a message
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        final userId = userProvider.user?.uid;
+
+        if (userId != null) {
+          await Provider.of<ChatProvider>(context, listen: false).sendMessage(
+            widget.chatId,
+            userId,
+            imageUrl,
+            isImage: true, // Indicate that this is an image message
+          );
+
+          // Scroll to the bottom after sending the message
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToBottom();
+          });
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+    } finally {
+      setState(() {
+        _isUploading = false; // Stop uploading
+      });
+    }
+  }
+
+  Widget _buildMessageInput() {
+    return Row(
+      children: [
+        if (_isUploading)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: CircularProgressIndicator(), // Show loading indicator
+          )
+        else
+          IconButton(
+            icon: const Icon(Icons.image),
+            onPressed: _pickAndSendImage, // Call the image picker function
+          ),
+        Expanded(
+          child: TextField(
+            controller: _messageController,
+            decoration: const InputDecoration(
+              hintText: 'Type a message...',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: null,
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: _sendMessage,
+          icon: const Icon(Icons.send),
+          color: Theme.of(context).primaryColor,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
@@ -478,8 +553,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 5,
+                          horizontal: 12,
+                          vertical: 8,
                         ),
                         decoration: BoxDecoration(
                           color:
@@ -495,37 +570,79 @@ class _ChatScreenState extends State<ChatScreen> {
                                 isMe ? Radius.zero : const Radius.circular(20),
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment:
-                              isMe
-                                  ? CrossAxisAlignment.end
-                                  : CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Message content
-                            Text(
-                              message.content,
-                              style: TextStyle(
-                                color: isMe ? Colors.white : Colors.black,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 1),
-                            // Timestamp
-                            Text(
-                              _formatTimestamp(
-                                Timestamp.fromDate(message.timestamp),
-                              ), // Format and display the time
-                              style: TextStyle(
-                                color:
-                                    isMe
-                                        ? Colors.white70
-                                        : Colors.grey.shade600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
+                        child:
+                            message.isImage
+                                ? Column(
+                                  crossAxisAlignment:
+                                      isMe
+                                          ? CrossAxisAlignment.end
+                                          : CrossAxisAlignment.start,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        message.content,
+                                        width: 200,
+                                        height: 200,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (
+                                          context,
+                                          error,
+                                          stackTrace,
+                                        ) {
+                                          return const Icon(
+                                            Icons.broken_image,
+                                            size: 50,
+                                            color: Colors.grey,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatTimestamp(
+                                        Timestamp.fromDate(message.timestamp),
+                                      ),
+                                      style: TextStyle(
+                                        color:
+                                            isMe
+                                                ? Colors.white70
+                                                : Colors.grey.shade600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                                : Column(
+                                  crossAxisAlignment:
+                                      isMe
+                                          ? CrossAxisAlignment.end
+                                          : CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      message.content,
+                                      style: TextStyle(
+                                        color:
+                                            isMe ? Colors.white : Colors.black,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatTimestamp(
+                                        Timestamp.fromDate(message.timestamp),
+                                      ),
+                                      style: TextStyle(
+                                        color:
+                                            isMe
+                                                ? Colors.white70
+                                                : Colors.grey.shade600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                       ),
                     );
                   },
@@ -546,26 +663,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: null,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _sendMessage,
-                  icon: const Icon(Icons.send),
-                  color: Theme.of(context).primaryColor,
-                ),
-              ],
-            ),
+            child: _buildMessageInput(),
           ),
         ],
       ),

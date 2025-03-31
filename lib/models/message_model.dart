@@ -10,6 +10,7 @@ class MessageModel {
   final bool isRead;
   final bool isAgreement; // Indicates if the message is an agreement
   final bool? agreementAccepted; // Null if not yet accepted/rejected
+  final bool isImage; // Indicates if the message is an image
 
   MessageModel({
     required this.id,
@@ -20,9 +21,8 @@ class MessageModel {
     required this.isRead,
     this.isAgreement = false, // Default to false
     this.agreementAccepted, // Default to null
+    this.isImage = false, // Default to false
   });
-
-  
 
   // Factory method to create a MessageModel from a Firestore document with document ID
   factory MessageModel.fromMap(Map<String, dynamic> map, String documentId) {
@@ -35,6 +35,7 @@ class MessageModel {
       isRead: map['isRead'] as bool,
       isAgreement: map['isAgreement'] as bool? ?? false,
       agreementAccepted: map['agreementAccepted'] as bool?,
+      isImage: map['isImage'] as bool? ?? false, // Default to false if not present
     );
   }
 
@@ -49,6 +50,7 @@ class MessageModel {
       'isRead': isRead,
       'isAgreement': isAgreement,
       'agreementAccepted': agreementAccepted,
+      'isImage': isImage,
     };
   }
 
@@ -62,6 +64,7 @@ class MessageModel {
     bool? isRead,
     bool? isAgreement,
     bool? agreementAccepted,
+    bool? isImage,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -72,6 +75,7 @@ class MessageModel {
       isRead: isRead ?? this.isRead,
       isAgreement: isAgreement ?? this.isAgreement,
       agreementAccepted: agreementAccepted ?? this.agreementAccepted,
+      isImage: isImage ?? this.isImage,
     );
   }
 }

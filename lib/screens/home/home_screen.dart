@@ -423,7 +423,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           // Pagination controls at the bottom
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(2.0), // Reduced inner padding
             child: _buildPaginationControls(),
           ),
         ],

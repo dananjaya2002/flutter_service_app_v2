@@ -4,7 +4,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_application_1/firebase_options.dart';
 import 'package:provider/provider.dart';
 import 'package:cloudinary_url_gen/cloudinary.dart';
-import 'package:cloudinary_flutter/image/cld_image.dart';
 import 'package:cloudinary_flutter/cloudinary_context.dart';
 import 'providers/user_provider.dart';
 import 'providers/shop_provider.dart';

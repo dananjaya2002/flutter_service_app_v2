@@ -19,7 +19,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  double _rating = 3.0;
+  final double _rating = 3.0;
   bool _canSendAgreement = false;
   bool _isUploading = false; // Tracks if an image is being uploaded
 
@@ -190,7 +190,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showRatingPopup(BuildContext context) {
-    final TextEditingController _commentController = TextEditingController();
+    final TextEditingController commentController = TextEditingController();
     double localRating = _rating; // Use a local variable for the slider value
 
     showDialog(
@@ -233,7 +233,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   const SizedBox(height: 16),
                   // TextField for comment
                   TextField(
-                    controller: _commentController,
+                    controller: commentController,
                     maxLines: 3,
                     decoration: const InputDecoration(
                       labelText: 'Comment',
@@ -253,7 +253,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                final comment = _commentController.text.trim();
+                final comment = commentController.text.trim();
 
                 if (localRating < 1 || localRating > 5) {
                   ScaffoldMessenger.of(context).showSnackBar(

@@ -11,10 +11,10 @@ class ManageServicesScreen extends StatefulWidget {
   final Function(List<Map<String, dynamic>>) onSave;
 
   const ManageServicesScreen({
-    Key? key,
+    super.key,
     required this.services,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<ManageServicesScreen> createState() => _ManageServicesScreenState();

@@ -6,6 +6,7 @@ import '../../providers/chat_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../models/shop_model.dart';
+
 class ChatScreen extends StatefulWidget {
   final String chatId;
 
@@ -19,52 +20,54 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   double _rating = 3.0;
-  bool _canSendAgreement = false; 
+  bool _canSendAgreement = false;
 
   @override
-void initState() {
-  super.initState();
-  _initializeChatDetails();
-  _loadMessages();
-  _markChatAsRead();
-}
-
-Future<void> _initializeChatDetails() async {
-  try {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final userId = userProvider.user?.uid;
-
-    if (userProvider.user?.role != 'service_provider' || userId == null) {
-      return; // Exit if the user is not a service provider or not logged in
-    }
-
-    // Fetch the serviceProviderId from the chats collection using chatId
-    final chatSnapshot = await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatId)
-        .get();
-
-    if (!chatSnapshot.exists) {
-      print('Chat not found.');
-      return;
-    }
-
-    final serviceProviderId = chatSnapshot.data()?['serviceProviderId'] as String?;
-    if (serviceProviderId == null) {
-      print('Service provider ID not found in chat.');
-      return;
-    }
-
-    // Compare the serviceProviderId with the current user's userId
-    if (serviceProviderId == userId) {
-      setState(() {
-        _canSendAgreement = true; // Allow the button to be shown
-      });
-    }
-  } catch (e) {
-    print('Error initializing chat details: $e');
+  void initState() {
+    super.initState();
+    _initializeChatDetails();
+    _loadMessages();
+    _markChatAsRead();
   }
-}
+
+  Future<void> _initializeChatDetails() async {
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final userId = userProvider.user?.uid;
+
+      if (userProvider.user?.role != 'service_provider' || userId == null) {
+        return; // Exit if the user is not a service provider or not logged in
+      }
+
+      // Fetch the serviceProviderId from the chats collection using chatId
+      final chatSnapshot =
+          await FirebaseFirestore.instance
+              .collection('chats')
+              .doc(widget.chatId)
+              .get();
+
+      if (!chatSnapshot.exists) {
+        print('Chat not found.');
+        return;
+      }
+
+      final serviceProviderId =
+          chatSnapshot.data()?['serviceProviderId'] as String?;
+      if (serviceProviderId == null) {
+        print('Service provider ID not found in chat.');
+        return;
+      }
+
+      // Compare the serviceProviderId with the current user's userId
+      if (serviceProviderId == userId) {
+        setState(() {
+          _canSendAgreement = true; // Allow the button to be shown
+        });
+      }
+    } catch (e) {
+      print('Error initializing chat details: $e');
+    }
+  }
 
   Future<void> _loadMessages() async {
     await Provider.of<ChatProvider>(
@@ -272,6 +275,7 @@ Future<void> _initializeChatDetails() async {
       },
     );
   }
+
   /// Fetch shopId from chatId
   Future<String?> _getShopIdFromChatId(String chatId) async {
     try {
@@ -293,8 +297,7 @@ Future<void> _initializeChatDetails() async {
   Future<void> _saveRatingAndComment(int rating, String comment) async {
     try {
       // Fetch the shopId from the chatId
-    final shopId = await _getShopIdFromChatId(widget.chatId);
-
+      final shopId = await _getShopIdFromChatId(widget.chatId);
 
       // Use chatId as the document ID to ensure uniqueness
       await FirebaseFirestore.instance
@@ -320,10 +323,22 @@ Future<void> _initializeChatDetails() async {
     }
   }
 
+  String _formatTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return '';
+    try {
+      final dateTime = timestamp.toDate();
+      final time = TimeOfDay.fromDateTime(dateTime);
+      return '${time.hourOfPeriod}:${time.minute.toString().padLeft(2, '0')} ${time.period == DayPeriod.am ? 'AM' : 'PM'}';
+    } catch (e) {
+      print('Error formatting timestamp: $e');
+      return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
-    
+
     final shopProvider = Provider.of<ShopProvider>(context);
     final userId = userProvider.user?.uid;
 
@@ -464,20 +479,52 @@ Future<void> _initializeChatDetails() async {
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 10,
+                          vertical: 5,
                         ),
                         decoration: BoxDecoration(
                           color:
                               isMe
                                   ? Theme.of(context).primaryColor
                                   : Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          message.content,
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(20),
+                            topRight: const Radius.circular(20),
+                            bottomLeft:
+                                isMe ? const Radius.circular(20) : Radius.zero,
+                            bottomRight:
+                                isMe ? Radius.zero : const Radius.circular(20),
                           ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment:
+                              isMe
+                                  ? CrossAxisAlignment.end
+                                  : CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Message content
+                            Text(
+                              message.content,
+                              style: TextStyle(
+                                color: isMe ? Colors.white : Colors.black,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            // Timestamp
+                            Text(
+                              _formatTimestamp(
+                                Timestamp.fromDate(message.timestamp),
+                              ), // Format and display the time
+                              style: TextStyle(
+                                color:
+                                    isMe
+                                        ? Colors.white70
+                                        : Colors.grey.shade600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );

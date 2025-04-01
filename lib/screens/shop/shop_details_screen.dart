@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/shop_model.dart';
 import '../../providers/shop_provider.dart';
@@ -378,10 +379,36 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildActionButton(Icons.call, 'Call', () {}),
+            _buildActionButton(Icons.call, 'Call', () {
+              if (_shop?.phoneNumber != null) {
+                _showCallPopup(_shop!.phoneNumber!);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Phone number not available')),
+                );
+              }
+            }),
             _buildActionButton(Icons.chat, 'Chat', _startChat),
-            _buildActionButton(Icons.map, 'Map', () {}),
-            _buildActionButton(Icons.share, 'Share', () {}),
+            _buildActionButton(Icons.share, 'Share', () {
+              if (_shop != null) {
+                final shareContent =
+                    'Check out this shop using Shop connect mobile app: ${_shop!.name}\n\nShop Description:\n${_shop!.description ?? ''}';
+                Clipboard.setData(ClipboardData(text: shareContent));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Shop details copied to clipboard! Share it manually.',
+                    ),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Shop details not available to share.'),
+                  ),
+                );
+              }
+            }),
           ],
         ),
         const SizedBox(height: 16),
@@ -444,6 +471,51 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen> {
         IconButton(icon: Icon(icon, size: 30), onPressed: onPressed),
         Text(label),
       ],
+    );
+  }
+
+  void _showCallPopup(String phoneNumber) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Contact Number'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                phoneNumber,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: phoneNumber));
+                  Navigator.pop(context); // Close the popup
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Phone number copied to clipboard!'),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy),
+                label: const Text('Copy to Clipboard'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close the popup
+              },
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 

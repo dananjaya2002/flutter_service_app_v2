@@ -151,8 +151,7 @@ class _ChatListScreenState extends State<ChatListScreen>
     final shopProvider = Provider.of<ShopProvider>(context, listen: false);
     final userProvider = Provider.of<UserProvider>(context, listen: false);
 
-    // Determine whether to fetch shop or customer details
-    final otherUserId = isPersonal ? chat.serviceProviderId : chat.customerId;
+    
 
     return FutureBuilder<String?>(
       future:

@@ -496,7 +496,7 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12), // Rounded corners
       ),
-      margin: const EdgeInsets.all(16), // Add margin around the card
+      margin: const EdgeInsets.all(5), // Add margin around the card
       child: Padding(
         padding: const EdgeInsets.all(16), // Padding inside the card
         child: Column(
@@ -532,17 +532,23 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
               )
             else
               SizedBox(
-                height: 120, // Fixed height for the ListView
+                height: 100, // Adjust height for the ListView
+                width: double.infinity, // Ensure the ListView takes full width
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: latestRatings.length,
                   itemBuilder: (context, index) {
                     final rating = latestRatings[index];
-                    return _buildReview(
-                      rating['name'],
-                      rating['comment'],
-                      rating['rating'],
-                      rating['profileImage'],
+                    return SizedBox(
+                      width:
+                          MediaQuery.of(context).size.width *
+                          0.8, // Take 80% of the screen width
+                      child: _buildReview(
+                        rating['name'],
+                        rating['comment'],
+                        rating['rating'],
+                        rating['profileImage'],
+                      ),
                     );
                   },
                 ),
@@ -560,60 +566,81 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     String? profileImage,
   ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Container(
-        width: 150,
-        margin: const EdgeInsets.symmetric(vertical: 2),
+        width: double.infinity, // Ensure the review card takes full width
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8), // Rounded corners
+          borderRadius: BorderRadius.circular(12), // Rounded corners
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withAlpha(
-                (0.3 * 255).toInt(),
-              ), // Subtle shadow
+              color: Colors.grey.withOpacity(0.1), // Softer shadow
               spreadRadius: 1,
-              blurRadius: 3,
+              blurRadius: 4,
               offset: const Offset(0, 2), // Shadow position
             ),
           ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundImage:
-                  profileImage != null ? NetworkImage(profileImage) : null,
-              child:
-                  profileImage == null
-                      ? const Icon(Icons.person, size: 24)
-                      : null,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              comment,
-              style: const TextStyle(fontSize: 12, color: Colors.black87),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) {
-                return Icon(
-                  index < rating ? Icons.star : Icons.star_border,
-                  color: Colors.amber,
-                  size: 16,
-                );
-              }),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(12), // Reduced padding for compactness
+          child: Row(
+            crossAxisAlignment:
+                CrossAxisAlignment.start, // Align items at the top
+            children: [
+              // Profile Image (Left Column)
+              CircleAvatar(
+                radius: 20, // Slightly smaller avatar for better proportion
+                backgroundImage:
+                    profileImage != null ? NetworkImage(profileImage) : null,
+                child:
+                    profileImage == null
+                        ? const Icon(Icons.person, size: 20)
+                        : null,
+              ),
+              const SizedBox(width: 12), // Space between image and details
+              // Name, Comment, and Rating (Right Column)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Name
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600, // Slightly bold
+                      ),
+                    ),
+                    const SizedBox(height: 6), // Reduced spacing
+                    // Comment
+                    Text(
+                      comment,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black87,
+                        height: 1.3, // Compact line height
+                      ),
+                      maxLines: 2, // Limit comment to 2 lines for compactness
+                      overflow:
+                          TextOverflow
+                              .ellipsis, // Add ellipsis if text overflows
+                    ),
+                    const SizedBox(height: 6), // Reduced spacing
+                    // Rating Stars
+                    Row(
+                      children: List.generate(5, (index) {
+                        return Icon(
+                          index < rating ? Icons.star : Icons.star_border,
+                          color: Colors.amber,
+                          size: 16, // Smaller stars for compactness
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

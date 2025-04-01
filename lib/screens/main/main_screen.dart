@@ -58,7 +58,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
+    Provider.of<UserProvider>(context);
 
     return Scaffold(
       body: _screens[_currentIndex],

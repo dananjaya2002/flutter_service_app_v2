@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../models/shop_model.dart';
 import '../models/category_model.dart';
-import '../models/comment_model.dart';
-import '../models/service_request_model.dart';
+
+
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
 import 'package:flutter/foundation.dart';
@@ -25,12 +25,7 @@ class DatabaseService {
 
   // Comments Collection Reference
   final CollectionReference commentsCollection = FirebaseFirestore.instance
-      .collection('comments');
-
-  // Service Requests Collection Reference
-  final CollectionReference serviceRequestsCollection = FirebaseFirestore
-      .instance
-      .collection('serviceRequests');
+      .collection('comments'); 
 
   // Chats Collection Reference
   final CollectionReference chatsCollection = FirebaseFirestore.instance
@@ -115,6 +110,8 @@ class DatabaseService {
     }
   }
 
+  
+
   // Get shops owned by user
   Stream<List<ShopModel>> getUserShops(String userId) {
     return shopsCollection
@@ -160,123 +157,9 @@ class DatabaseService {
       rethrow;
     }
   }
-
-  // Add comment to a shop
-  Future<String> addComment(CommentModel comment) async {
-    try {
-      DocumentReference docRef = await commentsCollection.add(comment.toMap());
-
-      // Update shop's rating
-      double newRating = await _calculateShopRating(comment.shopId);
-      await shopsCollection.doc(comment.shopId).update({
-        'rating': newRating,
-        'reviewCount': FieldValue.increment(1),
-      });
-
-      return docRef.id;
-    } catch (e) {
-      print('Error adding comment: $e');
-      rethrow;
-    }
-  }
-
-  // Calculate shop rating
-  Future<double> _calculateShopRating(String shopId) async {
-    try {
-      QuerySnapshot snapshot =
-          await commentsCollection.where('shopId', isEqualTo: shopId).get();
-
-      if (snapshot.docs.isEmpty) return 0.0;
-
-      double totalRating = 0.0;
-      for (var doc in snapshot.docs) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        totalRating += data['rating'] ?? 0.0;
-      }
-
-      return totalRating / snapshot.docs.length;
-    } catch (e) {
-      print('Error calculating rating: $e');
-      return 0.0;
-    }
-  }
-
-  // Get comments for a shop
-  Stream<List<CommentModel>> getShopComments(String shopId) {
-    return commentsCollection
-        .where('shopId', isEqualTo: shopId)
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) {
-                Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-                return CommentModel.fromMap(data, doc.id);
-              }).toList(),
-        );
-  }
-
-  // Create a service request
-  Future<String> createServiceRequest(ServiceRequestModel request) async {
-    try {
-      DocumentReference docRef = await serviceRequestsCollection.add(
-        request.toMap(),
-      );
-      return docRef.id;
-    } catch (e) {
-      print('Error creating service request: $e');
-      rethrow;
-    }
-  }
-
-  // Update service request status
-  Future<void> updateServiceRequestStatus(
-    String requestId,
-    String status, {
-    Timestamp? completedAt,
-  }) async {
-    try {
-      Map<String, dynamic> data = {'status': status};
-      if (completedAt != null) {
-        data['completedAt'] = completedAt;
-      }
-      await serviceRequestsCollection.doc(requestId).update(data);
-    } catch (e) {
-      print('Error updating service request: $e');
-      rethrow;
-    }
-  }
-
-  // Get service requests for a shop
-  Stream<List<ServiceRequestModel>> getShopServiceRequests(String shopId) {
-    return serviceRequestsCollection
-        .where('shopId', isEqualTo: shopId)
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) {
-                Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-                return ServiceRequestModel.fromMap(data, doc.id);
-              }).toList(),
-        );
-  }
-
-  // Get service requests for a customer
-  Stream<List<ServiceRequestModel>> getCustomerServiceRequests(
-    String customerId,
-  ) {
-    return serviceRequestsCollection
-        .where('customerId', isEqualTo: customerId)
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) {
-                Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-                return ServiceRequestModel.fromMap(data, doc.id);
-              }).toList(),
-        );
-  }
-
+ 
+  
+  
   // Create or get chat between customer and service provider
   Future<String> createOrGetChat(
     String customerId,
@@ -313,7 +196,7 @@ class DatabaseService {
         lastMessageTime: DateTime.now(),
         lastMessage: 'Chat started',
         isRead: true,
-        participants: {customerId: true, serviceProviderId: true},
+       
       );
 
       DocumentReference docRef = await chatsCollection.add(chat.toMap());
@@ -385,7 +268,7 @@ class DatabaseService {
           (snapshot) =>
               snapshot.docs.map((doc) {
                 Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-                return MessageModel.fromMap(data);
+                return MessageModel.fromMap(data, doc.id);
               }).toList(),
         );
   }
@@ -506,7 +389,7 @@ class DatabaseService {
         .map((snapshot) {
           return snapshot.docs.map((doc) {
             Map<String, dynamic> data = doc.data();
-            return MessageModel.fromMap(data);
+            return MessageModel.fromMap(data, doc.id);
           }).toList();
         });
   }

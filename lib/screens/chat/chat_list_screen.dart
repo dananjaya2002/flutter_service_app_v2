@@ -4,7 +4,6 @@ import '../../providers/chat_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../models/chat_model.dart';
-import '../../models/shop_model.dart';
 import 'chat_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
@@ -150,13 +149,27 @@ class _ChatListScreenState extends State<ChatListScreen>
     bool isPersonal,
   ) {
     final shopProvider = Provider.of<ShopProvider>(context, listen: false);
-    final otherUserId = isPersonal ? chat.serviceProviderId : chat.customerId;
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
 
-    return FutureBuilder<ShopModel?>(
-      future: shopProvider.getShopById(isPersonal ? chat.shopId : chat.shopId),
+    
+
+    return FutureBuilder<String?>(
+      future:
+          isPersonal
+              ? shopProvider.getShopNameById(
+                chat.shopId,
+              ) // Fetch shop name for personal chats
+              : userProvider.getUserNameById(
+                chat.customerId,
+              ), // Fetch customer name for shop chats
       builder: (context, snapshot) {
-        final name = snapshot.data?.name ?? 'Unknown';
-        final imageUrl = snapshot.data?.imageUrl;
+        final name = snapshot.data ?? 'Unknown';
+        final imageUrl =
+            isPersonal
+                ? snapshot
+                    .data
+                    ?.imageUrl // Shop image for personal chats
+                : null; // No image for customers (optional)
 
         return ListTile(
           leading: CircleAvatar(
@@ -218,4 +231,8 @@ class _ChatListScreenState extends State<ChatListScreen>
       return 'now';
     }
   }
+}
+
+extension on String? {
+  get imageUrl => null;
 }

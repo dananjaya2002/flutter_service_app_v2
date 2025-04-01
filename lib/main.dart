@@ -1,7 +1,10 @@
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_application_1/firebase_options.dart';
 import 'package:provider/provider.dart';
+import 'package:cloudinary_url_gen/cloudinary.dart';
+import 'package:cloudinary_flutter/cloudinary_context.dart';
 import 'providers/user_provider.dart';
 import 'providers/shop_provider.dart';
 import 'providers/chat_provider.dart';
@@ -11,6 +14,10 @@ import 'screens/wrapper.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  CloudinaryContext.cloudinary = Cloudinary.fromCloudName(
+    cloudName: 'dw9iw9vhk',
+  );
+
   runApp(const MyApp());
 }
 

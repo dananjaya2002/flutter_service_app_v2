@@ -5,36 +5,108 @@ import '../models/message_model.dart';
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Create or get an existing chat
+  Future<ChatModel> createOrGetChat(String shopId, String customerId) async {
+    try {
+      // Get the shop owner's ID
+      final shopDoc = await _firestore.collection('shops').doc(shopId).get();
+      final shopData = shopDoc.data();
+
+      if (shopData == null || shopData['ownerId'] == null) {
+        throw Exception('Shop owner ID is missing for shopId: $shopId, $customerId, $shopData');
+      }
+
+      final serviceProviderId = shopData['ownerId'] as String;
+
+      // Check if a chat already exists
+      final querySnapshot =
+          await _firestore
+              .collection('chats')
+              .where('customerId', isEqualTo: customerId)
+              .where('serviceProviderId', isEqualTo: serviceProviderId)
+              .where('shopId', isEqualTo: shopId)
+              .limit(1)
+              .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        // Chat already exists, return it
+        return ChatModel.fromMap(querySnapshot.docs.first.data());
+      }
+
+      // Create a new chat if it doesn't exist
+      final chatRef = _firestore.collection('chats').doc();
+      final chat = ChatModel(
+        id: chatRef.id,
+        shopId: shopId,
+        customerId: customerId,
+        serviceProviderId: serviceProviderId,
+        lastMessage: '',
+        lastMessageTime: DateTime.now(),
+        isRead: true,
+      );
+
+      await chatRef.set(chat.toMap());
+      return chat;
+    } catch (e) {
+      print('Error creating or getting chat: $e');
+      rethrow;
+    }
+  }
+
   // Create a new chat
   Future<ChatModel> createChat(String shopId, String customerId) async {
-    final chatRef = _firestore.collection('chats').doc();
+    try {
+      // Get the shop owner's ID
+      final shopDoc = await _firestore.collection('shops').doc(shopId).get();
+      final serviceProviderId = shopDoc.data()?['ownerId'] as String;
 
-    // Get the shop owner's ID
-    final shopDoc = await _firestore.collection('shops').doc(shopId).get();
-    final serviceProviderId = shopDoc.data()?['ownerId'] as String;
+      // Check if a chat already exists
+      final querySnapshot =
+          await _firestore
+              .collection('chats')
+              .where('customerId', isEqualTo: customerId)
+              .where('serviceProviderId', isEqualTo: serviceProviderId)
+              .where('shopId', isEqualTo: shopId)
+              .limit(1)
+              .get();
 
-    final chat = ChatModel(
-      id: chatRef.id,
-      shopId: shopId,
-      customerId: customerId,
-      serviceProviderId: serviceProviderId,
-      lastMessage: '',
-      lastMessageTime: DateTime.now(),
-      isRead: true,
-      participants: {shopId: true, customerId: true},
-    );
+      if (querySnapshot.docs.isNotEmpty) {
+        // Chat already exists, return it
+        return ChatModel.fromMap(querySnapshot.docs.first.data());
+      }
 
-    await chatRef.set(chat.toMap());
-    return chat;
+      // Create a new chat if it doesn't exist
+      final chatRef = _firestore.collection('chats').doc();
+      final chat = ChatModel(
+        id: chatRef.id,
+        shopId: shopId,
+        customerId: customerId,
+        serviceProviderId: serviceProviderId,
+        lastMessage: '',
+        lastMessageTime: DateTime.now(),
+        isRead: true,
+      );
+
+      await chatRef.set(chat.toMap());
+      return chat;
+    } catch (e) {
+      print('Error creating or getting chat: $e');
+      rethrow;
+    }
   }
 
   // Get chat by ID
   Future<ChatModel?> getChat(String chatId) async {
-    final doc = await _firestore.collection('chats').doc(chatId).get();
-    if (doc.exists) {
-      return ChatModel.fromMap(doc.data()!);
+    try {
+      final doc = await _firestore.collection('chats').doc(chatId).get();
+      if (doc.exists) {
+        return ChatModel.fromMap(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      print('Error getting chat: $e');
+      rethrow;
     }
-    return null;
   }
 
   // Get all chats for a user
@@ -57,25 +129,30 @@ class ChatService {
     String senderId,
     String content,
   ) async {
-    final messageRef = _firestore.collection('messages').doc();
-    final message = MessageModel(
-      id: messageRef.id,
-      chatId: chatId,
-      senderId: senderId,
-      content: content,
-      timestamp: DateTime.now(),
-      isRead: false,
-    );
+    try {
+      final messageRef = _firestore.collection('messages').doc();
+      final message = MessageModel(
+        id: messageRef.id,
+        chatId: chatId,
+        senderId: senderId,
+        content: content,
+        timestamp: DateTime.now(),
+        isRead: false,
+      );
 
-    // Add message to messages collection
-    await messageRef.set(message.toMap());
+      // Add message to messages collection
+      await messageRef.set(message.toMap());
 
-    // Update chat's last message
-    await _firestore.collection('chats').doc(chatId).update({
-      'lastMessage': content,
-      'lastMessageTime': Timestamp.fromDate(message.timestamp),
-      'isRead': false,
-    });
+      // Update chat's last message
+      await _firestore.collection('chats').doc(chatId).update({
+        'lastMessage': content,
+        'lastMessageTime': Timestamp.fromDate(message.timestamp),
+        'isRead': false,
+      });
+    } catch (e) {
+      print('Error sending message: $e');
+      rethrow;
+    }
   }
 
   // Get messages for a chat
@@ -87,28 +164,33 @@ class ChatService {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
-              .map((doc) => MessageModel.fromMap(doc.data()))
+              .map((doc) => MessageModel.fromMap(doc.data(), doc.id))
               .toList();
         });
   }
 
   // Mark chat as read
   Future<void> markChatAsRead(String chatId) async {
-    await _firestore.collection('chats').doc(chatId).update({'isRead': true});
+    try {
+      await _firestore.collection('chats').doc(chatId).update({'isRead': true});
 
-    // Mark all messages as read
-    final messages =
-        await _firestore
-            .collection('messages')
-            .where('chatId', isEqualTo: chatId)
-            .where('isRead', isEqualTo: false)
-            .get();
+      // Mark all messages as read
+      final messages =
+          await _firestore
+              .collection('messages')
+              .where('chatId', isEqualTo: chatId)
+              .where('isRead', isEqualTo: false)
+              .get();
 
-    final batch = _firestore.batch();
-    for (var doc in messages.docs) {
-      batch.update(doc.reference, {'isRead': true});
+      final batch = _firestore.batch();
+      for (var doc in messages.docs) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+      await batch.commit();
+    } catch (e) {
+      print('Error marking chat as read: $e');
+      rethrow;
     }
-    await batch.commit();
   }
 
   // Get unread message count for a user

@@ -169,4 +169,21 @@ class UserProvider with ChangeNotifier {
       rethrow;
     }
   }
+
+  Future<String?> getUserNameById(String userId) async {
+  try {
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .get();
+
+    if (userDoc.exists) {
+      return userDoc.data()?['name'] as String?;
+    }
+    return null;
+  } catch (e) {
+    print('Error fetching user name: $e');
+    return null;
+  }
+}
 }

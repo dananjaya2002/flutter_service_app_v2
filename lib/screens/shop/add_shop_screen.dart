@@ -56,11 +56,11 @@ class AddShopScreen extends StatelessWidget {
     });
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Shop'),
-      ),
+      appBar: AppBar(title: const Text('Add Shop')),
       body: const Center(
-        child: Text('Go Back to the previous screen'), // Placeholder text while the dialog is shown
+        child: Text(
+          'Go Back to the previous screen',
+        ), // Placeholder text while the dialog is shown
       ),
     );
   }
@@ -90,13 +90,6 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    // TODO: Implement image picking
-    setState(() {
-      _imageUrl = 'placeholder_url';
-    });
-  }
-
   Future<void> _saveShop(BuildContext context) async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -112,9 +105,9 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
       final location =
           locationParts.length == 2
               ? GeoPoint(
-                  double.parse(locationParts[0].trim()),
-                  double.parse(locationParts[1].trim()),
-                )
+                double.parse(locationParts[0].trim()),
+                double.parse(locationParts[1].trim()),
+              )
               : null;
 
       final newShop = ShopModel(
@@ -141,9 +134,9 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding shop: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error adding shop: $e')));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -173,8 +166,11 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
                     labelText: 'Shop Name',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Please enter shop name' : null,
+                  validator:
+                      (value) =>
+                          value?.isEmpty ?? true
+                              ? 'Please enter shop name'
+                              : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -184,8 +180,11 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
                     border: OutlineInputBorder(),
                   ),
                   maxLines: 3,
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Please enter description' : null,
+                  validator:
+                      (value) =>
+                          value?.isEmpty ?? true
+                              ? 'Please enter description'
+                              : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -195,8 +194,11 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.phone,
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Please enter phone number' : null,
+                  validator:
+                      (value) =>
+                          value?.isEmpty ?? true
+                              ? 'Please enter phone number'
+                              : null,
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -205,17 +207,20 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
                     labelText: 'Category',
                     border: OutlineInputBorder(),
                   ),
-                  items: CategoryModel.defaultCategories
-                      .map(
-                        (category) => DropdownMenuItem(
-                          value: category.id,
-                          child: Text(category.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() => _selectedCategory = value),
-                  validator: (value) =>
-                      value == null ? 'Please select a category' : null,
+                  items:
+                      CategoryModel.defaultCategories
+                          .map(
+                            (category) => DropdownMenuItem(
+                              value: category.id,
+                              child: Text(category.name),
+                            ),
+                          )
+                          .toList(),
+                  onChanged:
+                      (value) => setState(() => _selectedCategory = value),
+                  validator:
+                      (value) =>
+                          value == null ? 'Please select a category' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -224,12 +229,35 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
                     labelText: 'Location',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Please enter location' : null,
+                  validator:
+                      (value) =>
+                          value?.isEmpty ?? true
+                              ? 'Please enter location'
+                              : null,
                 ),
                 const SizedBox(height: 16),
                 InkWell(
-                  onTap: _pickImage,
+                  onTap: () async {
+                    final shopProvider = Provider.of<ShopProvider>(
+                      context,
+                      listen: false,
+                    );
+                    final imageUrl =
+                        await shopProvider
+                            .pickImage(); // Call pickImage from ShopProvider
+                    if (imageUrl.isNotEmpty) {
+                      setState(() {
+                        _imageUrl =
+                            imageUrl; // Update the _imageUrl with the returned URL
+                      });
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Image upload ing'),
+                        ),
+                      );
+                    }
+                  },
                   child: Container(
                     height: 100,
                     decoration: BoxDecoration(
@@ -237,15 +265,18 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Center(
-                      child: _imageUrl != null
-                          ? Image.network(_imageUrl!)
-                          : const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add_photo_alternate_outlined),
-                                Text('Add an image'),
-                              ],
-                            ),
+                      child:
+                          _imageUrl != null
+                              ? Image.network(
+                                _imageUrl!,
+                              ) // Display the uploaded image
+                              : const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_photo_alternate_outlined),
+                                  Text('Add an image'),
+                                ],
+                              ),
                     ),
                   ),
                 ),
@@ -255,9 +286,10 @@ class _AddShopFormDialogState extends State<_AddShopFormDialog> {
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator()
-                      : const Text('Save'),
+                  child:
+                      _isLoading
+                          ? const CircularProgressIndicator()
+                          : const Text('Save'),
                 ),
               ],
             ),

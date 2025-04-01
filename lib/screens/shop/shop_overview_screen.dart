@@ -15,10 +15,10 @@ class ShopOverviewScreen extends StatefulWidget {
 
 class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
   bool _isLoading = true;
+  bool _isServicesLoading = true; // Tracks loading state for services
+  bool _isReviewsLoading = true; // Tracks loading state for reviews
   ShopModel? _shop;
   List<Map<String, dynamic>> _ratings = []; // Store ratings with user details
-  int _agreementsCount = 0;
-  int _unreadMessagesCount = 0;
 
   @override
   void initState() {
@@ -26,8 +26,6 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     _loadShopData().then((_) {
       if (_shop != null) {
         _loadRatings();
-        _loadAgreementsCount();
-        _loadUnreadMessagesCount();
       }
     });
   }
@@ -40,6 +38,10 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
       final shop = await shopProvider.getShopByOwnerId(userId);
 
       // Fetch services from the Firestore subcollection
+      setState(() {
+        _isServicesLoading = true; // Start loading services
+      });
+
       final services =
           shop != null ? await shopProvider.fetchServices(shop.id) : [];
 
@@ -49,6 +51,7 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
             services: services.cast<Map<String, dynamic>>(),
           ); // Update _shop with services
         }
+        _isServicesLoading = false; // Stop loading services
         _isLoading = false;
       });
     } catch (e) {
@@ -57,12 +60,19 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading shop data: $e')));
       }
-      setState(() => _isLoading = false);
+      setState(() {
+        _isServicesLoading = false; // Stop loading services
+        _isLoading = false;
+      });
     }
   }
 
   Future<void> _loadRatings() async {
     try {
+      setState(() {
+        _isReviewsLoading = true; // Start loading reviews
+      });
+
       final ratingsSnapshot =
           await FirebaseFirestore.instance
               .collection('ratings')
@@ -104,42 +114,13 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
 
       setState(() {
         _ratings = ratings;
+        _isReviewsLoading = false; // Stop loading reviews
       });
     } catch (e) {
       print('Error loading ratings: $e');
-    }
-  }
-
-  Future<void> _loadAgreementsCount() async {
-    try {
-      final agreementsSnapshot =
-          await FirebaseFirestore.instance
-              .collection('agreements')
-              .where('ownerId', isEqualTo: _shop!.ownerId)
-              .get();
-
       setState(() {
-        _agreementsCount = agreementsSnapshot.docs.length;
+        _isReviewsLoading = false; // Stop loading reviews
       });
-    } catch (e) {
-      print('Error loading agreements count: $e');
-    }
-  }
-
-  Future<void> _loadUnreadMessagesCount() async {
-    try {
-      final messagesSnapshot =
-          await FirebaseFirestore.instance
-              .collection('messages')
-              .where('shopId', isEqualTo: _shop!.id)
-              .where('isRead', isEqualTo: false)
-              .get();
-
-      setState(() {
-        _unreadMessagesCount = messagesSnapshot.docs.length;
-      });
-    } catch (e) {
-      print('Error loading unread messages count: $e');
     }
   }
 
@@ -179,12 +160,7 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildShopDetails(),
-            _buildShopOverview(),
-            _buildServiceList(),
-            _buildReviews(),
-          ],
+          children: [_buildShopDetails(), _buildServiceList(), _buildReviews()],
         ),
       ),
     );
@@ -288,72 +264,6 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
     );
   }
 
-  Widget _buildShopOverview() {
-    final List<Map<String, String>> overviewItems = [
-      {'label': 'Agreements', 'count': _agreementsCount.toString()},
-      {
-        'label': 'Avg Ratings',
-        'count': _calculateAverageRating().toStringAsFixed(1),
-      },
-      {'label': 'Messages', 'count': _unreadMessagesCount.toString()},
-    ];
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: Colors.blue[50],
-      child: SizedBox(
-        height: 150, // Fixed height for the GridView
-        child: GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 1.5,
-          ),
-          itemCount: overviewItems.length,
-          itemBuilder: (context, index) {
-            final item = overviewItems[index];
-            return _buildOverviewItem(item['label']!, item['count']!);
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOverviewItem(String label, String count) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withAlpha((0.3 * 255).toInt()),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            count,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildServiceList() {
     return Card(
       elevation: 2, // Subtle shadow for a modern look
@@ -382,8 +292,10 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
             ),
             const SizedBox(height: 8),
 
-            // No Services Message or Services List
-            if (_shop!.services.isEmpty)
+            // Loading Indicator or Services List
+            if (_isServicesLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_shop!.services.isEmpty)
               const Text(
                 'No services added.',
                 style: TextStyle(fontSize: 16, color: Colors.grey),
@@ -482,15 +394,6 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
   }
 
   Widget _buildReviews() {
-    // Sort ratings by latest (assuming each rating has a 'timestamp' field)
-    final sortedRatings = List<Map<String, dynamic>>.from(_ratings)..sort(
-      (a, b) =>
-          (b['timestamp'] as Timestamp).compareTo(a['timestamp'] as Timestamp),
-    );
-
-    // Show only the latest 10 reviews
-    final latestRatings = sortedRatings.take(10).toList();
-
     return Card(
       elevation: 2, // Subtle shadow for a modern look
       shape: RoundedRectangleBorder(
@@ -520,8 +423,10 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
             ),
             const SizedBox(height: 8),
 
-            // No Reviews Message or Reviews List
-            if (_ratings.isEmpty)
+            // Loading Indicator or Reviews List
+            if (_isReviewsLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_ratings.isEmpty)
               SizedBox(
                 width: double.infinity, // Ensure the card takes full width
                 child: const Text(
@@ -531,27 +436,23 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
                 ),
               )
             else
-              SizedBox(
-                height: 100, // Adjust height for the ListView
-                width: double.infinity, // Ensure the ListView takes full width
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: latestRatings.length,
-                  itemBuilder: (context, index) {
-                    final rating = latestRatings[index];
-                    return SizedBox(
-                      width:
-                          MediaQuery.of(context).size.width *
-                          0.8, // Take 80% of the screen width
-                      child: _buildReview(
-                        rating['name'],
-                        rating['comment'],
-                        rating['rating'],
-                        rating['profileImage'],
-                      ),
-                    );
-                  },
-                ),
+              ListView.builder(
+                shrinkWrap: true, // Allow the ListView to fit within the card
+                physics:
+                    const NeverScrollableScrollPhysics(), // Disable scrolling
+                itemCount: _ratings.length,
+                itemBuilder: (context, index) {
+                  final rating = _ratings[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: _buildReview(
+                      rating['name'],
+                      rating['comment'],
+                      rating['rating'],
+                      rating['profileImage'],
+                    ),
+                  );
+                },
               ),
           ],
         ),
@@ -647,6 +548,12 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
   }
 
   void _showAllRatingsPopup() {
+    // Sort the ratings by timestamp (latest first)
+    final sortedRatings = List<Map<String, dynamic>>.from(_ratings)..sort(
+      (a, b) =>
+          (b['timestamp'] as Timestamp).compareTo(a['timestamp'] as Timestamp),
+    );
+
     showDialog(
       context: context,
       builder: (context) {
@@ -655,7 +562,7 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
           content: SizedBox(
             width: double.maxFinite, // Ensure the dialog takes full width
             child:
-                _ratings.isEmpty
+                sortedRatings.isEmpty
                     ? const Text(
                       'No ratings available.',
                       style: TextStyle(fontSize: 16, color: Colors.grey),
@@ -663,9 +570,9 @@ class _ShopOverviewScreenState extends State<ShopOverviewScreen> {
                     )
                     : ListView.builder(
                       shrinkWrap: true,
-                      itemCount: _ratings.length,
+                      itemCount: sortedRatings.length,
                       itemBuilder: (context, index) {
-                        final rating = _ratings[index];
+                        final rating = sortedRatings[index];
                         return _buildReview(
                           rating['name'],
                           rating['comment'],

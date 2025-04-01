@@ -39,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login failed: ${e.toString()}')),
+          SnackBar(content: Text('Login failed: Invalid Login Credentials')),
         );
       }
     }

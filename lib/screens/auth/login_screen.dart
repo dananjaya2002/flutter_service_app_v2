@@ -62,15 +62,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   const SizedBox(height: 40),
                   // App logo or icon
-                  Icon(
-                    Icons.store_rounded,
-                    size: 80,
-                    color: Theme.of(context).primaryColor,
+                  Image.asset(
+                    'assets/icons/logo.png',
+                    height: 80,
+                    width: 80,
                   ),
                   const SizedBox(height: 20),
                   // App name
                   Text(
-                    'Shop Connect',
+                    'Smart Seeker',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
